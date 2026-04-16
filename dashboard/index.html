@@ -185,6 +185,22 @@
   /* ── Refresh tag ─────────────────────────────────── */
   .refresh-tag { font-size: 11px; color: var(--muted); }
 
+  /* ── Live refresh timer in topbar ───────────────── */
+  .refresh-timer {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: default;
+  }
+  .refresh-timer.fresh { color: var(--green); border-color: rgba(34,211,165,0.3); }
+  .refresh-timer.stale { color: var(--yellow); border-color: rgba(251,191,36,0.3); }
+  .refresh-timer.dead  { color: var(--red);    border-color: rgba(244,63,94,0.3); }
+  .refresh-icon { font-size: 11px; }
+
   /* ── Mobile ──────────────────────────────────────── */
   @media (max-width: 720px) {
     .sidebar { display: none; }
@@ -226,6 +242,10 @@
       <div class="topbar-meta">
         <span class="badge paper" id="mode-badge">PAPER</span>
         <span class="badge stopped" id="status-badge">STOPPED</span>
+        <div class="refresh-timer" id="refresh-timer" title="Time since last data update">
+          <span class="refresh-icon">🔄</span>
+          <span id="refresh-ago">—</span>
+        </div>
         <div class="control-btns">
           <button class="btn start" id="btn-start" onclick="botStart()">▶ Start</button>
           <button class="btn stop"  id="btn-stop"  onclick="botStop()" disabled>■ Stop</button>
@@ -335,6 +355,23 @@ const proto = location.protocol === 'https:' ? 'wss' : 'ws';
 let ws, reconnectTimer;
 let state = {};
 let logCount = 0;
+let lastUpdateTs = null;
+
+// Live "Xs ago" ticker
+function tickRefresh() {
+  const el = document.getElementById('refresh-timer');
+  const agoEl = document.getElementById('refresh-ago');
+  if (!lastUpdateTs) { agoEl.textContent = 'waiting…'; return; }
+  const sec = Math.floor((Date.now() - lastUpdateTs) / 1000);
+  if (sec < 60) {
+    agoEl.textContent = sec <= 1 ? 'just now' : sec + 's ago';
+  } else {
+    agoEl.textContent = Math.floor(sec / 60) + 'm ago';
+  }
+  // Color feedback: green <10s, yellow 10-30s, red >30s
+  el.className = 'refresh-timer ' + (sec < 10 ? 'fresh' : sec < 30 ? 'stale' : 'dead');
+}
+setInterval(tickRefresh, 1000);
 
 function connect() {
   ws = new WebSocket(`${proto}://${location.host}`);
@@ -372,7 +409,7 @@ function setConn(online) {
 async function pollStatus() {
   try {
     const r = await fetch('/api/status');
-    if (r.ok) applyState(await r.json());
+    if (r.ok) applyState(await r.json()); // applyState sets lastUpdateTs
   } catch (_) {}
 }
 async function pollTrades() {
@@ -388,6 +425,8 @@ setInterval(pollTrades, 15000);
 // ── State ───────────────────────────────────────────────────────────────────
 function applyState(s) {
   state = s;
+  lastUpdateTs = Date.now();
+  tickRefresh(); // update immediately, don't wait for next tick
   document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
 
   // Mode badge
