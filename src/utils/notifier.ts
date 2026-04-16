@@ -40,7 +40,6 @@ class Notifier {
                 }
             });
 
-            // DEBUG: Log all incoming messages
             this.telegramBot.on('message', (msg) => {
                 logger.info(`📩 Telegram Msg: "${msg.text}" | From: ${msg.chat.id} | Expected: ${this.chatId}`);
             });
@@ -67,6 +66,20 @@ class Notifier {
                     { text: '❓ Help', callback_data: 'help' },
                 ],
             ],
+        };
+    }
+
+    // ─── Persistent reply keyboard (always visible at bottom of chat) ───
+    private getPersistentKeyboard() {
+        return {
+            keyboard: [
+                [{ text: '📊 Status' }, { text: '▶️ Start Bot' }, { text: '⏹ Stop Bot' }],
+                [{ text: '🔍 Scanner' }, { text: '🔄 Rescan' }, { text: '🎯 Pairs' }],
+                [{ text: '🤖 Retrain AI' }, { text: '❓ Help' }],
+            ],
+            resize_keyboard: true,
+            persistent: true,
+            is_persistent: true,
         };
     }
 
@@ -137,11 +150,85 @@ ${pairsList || '  (none)'}
             `.trim();
         };
 
-        // ─── /start — Control panel with inline buttons ───
-        this.telegramBot.onText(/\/start$/, async (msg) => {
+        // ─── /start — Control panel with inline buttons + persistent keyboard ───
+        this.telegramBot.onText(/\/start/, async (msg) => {
             if (msg.chat.id.toString() !== this.chatId) return;
             const s = await callbacks.onStatus();
             await this.sendControlPanel(s.isRunning);
+        });
+
+        // ─── Persistent keyboard button texts ───
+        this.telegramBot.onText(/^📊 Status$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            const message = await sendStatus();
+            await this.sendTelegramMessage(message);
+        });
+        this.telegramBot.onText(/^▶️ Start Bot$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            await this.sendTelegramMessage('🚀 Starting Trading Bot...');
+            await callbacks.onStart();
+            await this.sendControlPanel(true);
+        });
+        this.telegramBot.onText(/^⏹ Stop Bot$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            callbacks.onStop('User pressed Stop button');
+            await this.sendTelegramMessage('🛑 Trading Bot stopped.');
+            await this.sendControlPanel(false);
+        });
+        this.telegramBot.onText(/^🔍 Scanner$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            await this.sendTelegramMessage(await this.buildScannerMessage(callbacks));
+        });
+        this.telegramBot.onText(/^🔄 Rescan$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            if (!config.autoPairSelection || !callbacks.onForceRescan) {
+                await this.sendTelegramMessage('📌 Auto Pair Selection is disabled.');
+                return;
+            }
+            await this.sendTelegramMessage('🔄 Forcing market re-scan...');
+            const result = await callbacks.onForceRescan();
+            await this.sendTelegramMessage(result);
+        });
+        this.telegramBot.onText(/^🎯 Pairs$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            await this.sendTelegramMessage(this.buildPairsMessage(callbacks));
+        });
+        this.telegramBot.onText(/^🤖 Retrain AI$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            if (!callbacks.onForceRetrain) {
+                await this.sendTelegramMessage('⚠️ Retrain not available.');
+                return;
+            }
+            await this.sendTelegramMessage('🔄 Starting AI retrain... (~60 seconds)');
+            const result = await callbacks.onForceRetrain();
+            await this.sendTelegramMessage(result);
+        });
+        this.telegramBot.onText(/^❓ Help$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            await this.sendTelegramMessage(`
+🤖 *Futures Trading Bot — Commands*
+
+🔧 *Control*
+/start — Open control panel with buttons
+/start\\_bot — Start trading engine
+/stop\\_bot — Stop trading engine
+
+📊 *Monitoring*
+/status — Bot status & P&L
+/pairs — Active trading pairs
+/scanner — Pair scanner rankings
+/analyze <pair> — Market analysis
+
+🎯 *Pair Management*
+/rescan — Force market re-scan
+/add\\_pair <pair> — Add pair manually
+/remove\\_pair <pair> — Remove pair
+
+⚙️ *Settings*
+/min\\_size <value> — Set min position $
+/get\\_min\\_size — Show config
+/retrain — Force AI retrain now
+            `.trim());
         });
 
         // ─── /status ───
@@ -367,7 +454,7 @@ Trailing: +${config.strategy.trailingStopActivation}% activate, ${config.strateg
         logger.info('Telegram command handlers registered');
     }
 
-    // ─── Send the control panel with inline buttons ───
+    // ─── Send the control panel with inline buttons + persistent keyboard ───
     async sendControlPanel(isRunning: boolean): Promise<void> {
         if (!this.telegramBot || !this.chatId) return;
 
@@ -377,13 +464,19 @@ Trailing: +${config.strategy.trailingStopActivation}% activate, ${config.strateg
 ${statusLine}
 Mode: ${config.mode.toUpperCase()} | Futures ${config.futures.leverage}x ${config.futures.marginMode}
 
-Tap a button to control the bot:
+Tap a button below to control the bot:
         `.trim();
 
         try {
             await this.telegramBot.sendMessage(this.chatId, message, {
                 parse_mode: 'Markdown',
-                reply_markup: this.getControlPanelKeyboard(isRunning),
+                reply_markup: {
+                    ...this.getControlPanelKeyboard(isRunning),
+                } as any,
+            });
+            // Also send/refresh the persistent reply keyboard
+            await this.telegramBot.sendMessage(this.chatId, '⌨️ Keyboard ready — buttons are always visible below.', {
+                reply_markup: this.getPersistentKeyboard() as any,
             });
         } catch (error) {
             logger.error('Failed to send control panel:', error);
