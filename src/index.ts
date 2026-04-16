@@ -22,12 +22,13 @@ async function main() {
         logger.info('Initializing exchange (Bybit Futures)...');
         const exchange = new BybitExchange('futures');
 
-        // Test connection
+        // Test connection (non-fatal — bot logs the real error and continues)
         const connected = await exchange.testConnection();
         if (!connected) {
-            throw new Error('Failed to connect to exchange');
+            logger.warn('⚠️  Exchange connection check failed — check API keys and network. Bot will attempt to continue.');
+        } else {
+            logger.info('✅ Exchange connected');
         }
-        logger.info('✅ Exchange connected');
 
         // Create strategy instance
         const strategy = new TrendFollowingStrategy();

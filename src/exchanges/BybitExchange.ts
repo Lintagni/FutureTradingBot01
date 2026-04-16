@@ -253,58 +253,63 @@ export class BybitExchange extends BaseExchange {
 
     async syncTime(): Promise<void> {
         try {
-            // Force disable sync briefly to get a clean public server time
             this.exchange.options['adjustForTimeDifference'] = false;
 
             const serverTime = await this.exchange.fetchTime();
-            if (!serverTime) throw new Error('Failed to fetch server time from public endpoint');
+            if (!serverTime) {
+                exchangeLogger.warn('fetchTime returned null — skipping time sync, using local time');
+                return;
+            }
 
             const localTime = Date.now();
             const timeDifference = serverTime - localTime;
 
-            // Apply offset to ALL possible CCXT locations
             this.exchange.options['timeDifference'] = timeDifference;
             this.exchange.options['adjustForTimeDifference'] = true;
             this.exchange.options['recvWindow'] = 120000;
-
             (this.exchange as any).timeDifference = timeDifference;
             (this.exchange as any).adjustForTimeDifference = true;
-
-            // Nuclear option: override milliseconds to return server-relative time 
             this.exchange.milliseconds = () => Date.now() + timeDifference;
 
             exchangeLogger.info(`🕒 Bybit Time Sync: Diff=${timeDifference}ms (Local=${localTime}, Server=${serverTime})`);
 
-            // Try to load markets only after sync is applied
             try {
-                // Bybit's loadMarkets calls fetchCurrencies (private), so we NEED the offset first
                 await this.exchange.loadMarkets();
-            } catch (e) {
-                exchangeLogger.warn('Bybit loadMarkets failed (non-critical if metadata exists):', e);
+            } catch (e: any) {
+                exchangeLogger.warn('Bybit loadMarkets failed (non-critical):', e?.message);
             }
-        } catch (error) {
-            exchangeLogger.error('Bybit Time Sync Failed:', error);
-            throw error;
+        } catch (error: any) {
+            // Time sync failure is non-fatal — bot can still trade with local time
+            exchangeLogger.warn(`Bybit Time Sync failed (using local time): ${error?.message}`);
         }
     }
 
     async testConnection(): Promise<boolean> {
         try {
+            // Step 1: sync time (non-fatal)
             await this.syncTime();
 
-            // Test actual connectivity with a small private call if possible
-            await this.exchange.fetchBalance({ coin: 'USDT' }).catch((e: any) => {
-                exchangeLogger.warn('fetchBalance check failed (non-fatal):', e?.message || e);
-            });
+            // Step 2: verify public market data is reachable
+            try {
+                await this.exchange.loadMarkets();
+                exchangeLogger.info('✅ Bybit markets loaded');
+            } catch (e: any) {
+                exchangeLogger.warn('loadMarkets failed:', e?.message);
+            }
 
-            exchangeLogger.info('✅ Bybit Connected and Synchronized');
+            // Step 3: verify private API access (API key check)
+            try {
+                await this.exchange.fetchBalance({ coin: 'USDT' });
+                exchangeLogger.info('✅ Bybit API key verified');
+            } catch (e: any) {
+                // Log clearly but don't abort — paper mode may still function
+                exchangeLogger.warn(`Bybit private API check failed: ${e?.message} [type: ${e?.constructor?.name}]`);
+            }
+
+            exchangeLogger.info('✅ Bybit Exchange initialised');
             return true;
         } catch (error: any) {
-            exchangeLogger.error('Bybit Connection Failed:', {
-                message: error?.message,
-                type: error?.constructor?.name,
-                details: error?.toString(),
-            });
+            exchangeLogger.error(`Bybit Connection Failed: ${error?.message} [type: ${error?.constructor?.name}]`);
             return false;
         }
     }
