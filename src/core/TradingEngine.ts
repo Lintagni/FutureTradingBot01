@@ -129,14 +129,19 @@ export class TradingEngine {
             try {
                 const bestPairs = await this.marketScanner.scanAndRank();
                 const scannerSymbols = bestPairs.map((p: PairScore) => p.symbol);
-
-                // CRITICAL FIX: Always include current open positions in monitoring
                 const currentPositions = Array.from(this.positions.keys());
-                this.activePairs = Array.from(new Set([...scannerSymbols, ...currentPositions]));
 
-                logger.info(`📊 MarketScanner selected: ${scannerSymbols.join(', ')}`);
-                if (currentPositions.length > 0) {
-                    logger.info(`♻️ [FUTURES] Also monitoring open positions: ${currentPositions.join(', ')}`);
+                if (scannerSymbols.length === 0) {
+                    // Scanner returned empty (e.g. auth failure in paper mode) — fall back to configured pairs
+                    logger.warn('📊 MarketScanner returned no pairs — using fallback pairs from config');
+                    this.activePairs = Array.from(new Set([...config.tradingPairs, ...currentPositions]));
+                } else {
+                    // CRITICAL FIX: Always include current open positions in monitoring
+                    this.activePairs = Array.from(new Set([...scannerSymbols, ...currentPositions]));
+                    logger.info(`📊 MarketScanner selected: ${scannerSymbols.join(', ')}`);
+                    if (currentPositions.length > 0) {
+                        logger.info(`♻️ [FUTURES] Also monitoring open positions: ${currentPositions.join(', ')}`);
+                    }
                 }
             } catch (err) {
                 logger.error('📊 MarketScanner initial scan failed, using fallback pairs:', err);

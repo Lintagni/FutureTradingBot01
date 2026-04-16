@@ -59,6 +59,42 @@ export class BybitExchange extends BaseExchange {
         }
     }
 
+    // Override fetchTickers — use Bybit public API in paper mode (no auth required)
+    async fetchTickers(): Promise<{ [symbol: string]: any }> {
+        if (config.mode !== 'paper') {
+            return super.fetchTickers();
+        }
+        try {
+            // Bybit public endpoint — no API key needed
+            const resp = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+            const json: any = await resp.json();
+            const list: any[] = json?.result?.list || [];
+            const tickers: { [symbol: string]: any } = {};
+            for (const t of list) {
+                // Convert "SOLUSDT" → "SOL/USDT:USDT" (CCXT linear futures symbol format)
+                const raw: string = t.symbol || '';
+                if (!raw.endsWith('USDT')) continue;
+                const base = raw.slice(0, -4); // strip "USDT"
+                const symbol = `${base}/USDT:USDT`;
+                tickers[symbol] = {
+                    symbol,
+                    last: parseFloat(t.lastPrice || '0'),
+                    bid: parseFloat(t.bid1Price || t.lastPrice || '0'),
+                    ask: parseFloat(t.ask1Price || t.lastPrice || '0'),
+                    quoteVolume: parseFloat(t.turnover24h || '0'),
+                    baseVolume: parseFloat(t.volume24h || '0'),
+                    timestamp: Date.now(),
+                    close: parseFloat(t.lastPrice || '0'),
+                };
+            }
+            exchangeLogger.info(`[PAPER] fetchTickers: got ${Object.keys(tickers).length} linear futures pairs from Bybit public API`);
+            return tickers;
+        } catch (e: any) {
+            exchangeLogger.warn(`[PAPER] fetchTickers public API failed: ${e?.message} — returning empty`);
+            return {};
+        }
+    }
+
     // Override fetchOHLCV — fall back to Kraken in paper mode if Bybit unreachable
     async fetchOHLCV(symbol: string, timeframe = '15m', limit = 100): Promise<import('../utils/indicators').OHLCV[]> {
         try {
