@@ -584,7 +584,7 @@ export class TradingEngine {
                     amount: order.amount,
                     price: order.price,
                     cost: order.cost,
-                    fee: typeof order.fee === 'object' ? (order.fee?.cost ?? 0) : (order.fee ?? 0),
+                    fee: typeof (order.fee as any) === 'object' ? ((order.fee as any)?.cost ?? 0) : (order.fee ?? 0),
                     entryPrice: order.price,
                     strategy: this.strategy.getName(),
                     signal: signal.signal,
