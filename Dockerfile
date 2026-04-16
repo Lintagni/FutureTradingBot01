@@ -37,8 +37,8 @@ COPY --from=builder /app/dashboard ./dashboard/
 COPY start.sh ./start.sh
 RUN chmod +x start.sh
 
-# Dashboard port
-EXPOSE 3000
+# Railway injects PORT at runtime; expose it for documentation
+EXPOSE ${PORT:-3000}
 
 # Run DB migration then start bot
 CMD ["sh", "start.sh"]

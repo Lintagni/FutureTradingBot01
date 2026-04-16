@@ -84,7 +84,8 @@ async function main() {
         // Notify startup
         await notifier.notifyBotStarted();
 
-        // Start Web Dashboard
+        // Start Web Dashboard and connect live engine data
+        webServer.registerEngine(futuresEngine);
         webServer.start();
 
         // Keep the process running
