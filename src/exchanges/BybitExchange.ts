@@ -106,7 +106,7 @@ export class BybitExchange extends BaseExchange {
                 maxRetries: 3,
                 retryDelay: 2000, // 2 seconds between retries
             },
-            timeout: 60000, // Increased to 60 seconds to handle network delays
+            timeout: config.mode === 'paper' ? 8000 : 60000, // fast timeout in paper (Bybit may be geo-blocked)
         };
 
         // Bybit Unified Account (required for futures)
@@ -369,6 +369,11 @@ export class BybitExchange extends BaseExchange {
     }
 
     async syncTime(): Promise<void> {
+        // Paper mode uses Binance for prices — no need to sync Bybit time
+        if (config.mode === 'paper') {
+            exchangeLogger.info('[PAPER] Skipping Bybit time sync (price data via Binance fallback)');
+            return;
+        }
         try {
             this.exchange.options['adjustForTimeDifference'] = false;
 
@@ -402,6 +407,18 @@ export class BybitExchange extends BaseExchange {
     }
 
     async testConnection(): Promise<boolean> {
+        // Paper mode: verify Binance fallback is reachable instead of Bybit
+        if (config.mode === 'paper') {
+            try {
+                const ticker = await this.binanceTicker('SOL/USDT');
+                exchangeLogger.info(`✅ Binance price feed OK — SOL/USDT: $${ticker.last}`);
+                return true;
+            } catch (e: any) {
+                exchangeLogger.error(`Binance fallback also unreachable: ${e?.message}`);
+                return false;
+            }
+        }
+
         try {
             // Step 1: sync time (non-fatal)
             await this.syncTime();
