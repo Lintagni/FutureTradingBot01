@@ -181,6 +181,7 @@ export class BybitExchange extends BaseExchange {
     }
 
     async getMinOrderAmount(symbol: string): Promise<number> {
+        if (config.mode === 'paper') return 0.001; // simulated — no real exchange check needed
         try {
             const exchangeSymbol = this.getExchangeSymbol(symbol);
             await this.exchange.loadMarkets();
@@ -198,6 +199,7 @@ export class BybitExchange extends BaseExchange {
     }
 
     async getMinOrderValue(symbol: string): Promise<number> {
+        if (config.mode === 'paper') return 5.0; // simulated — no real exchange check needed
         try {
             const exchangeSymbol = this.getExchangeSymbol(symbol);
             await this.exchange.loadMarkets();

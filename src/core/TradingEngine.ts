@@ -954,8 +954,10 @@ export class TradingEngine {
         }
 
         // Also get quote currency balance (typically USDT)
+        // "XRP/USDT:USDT".split('/')[1] → "USDT:USDT" — strip settle suffix
         try {
-            const quoteCurrency = allPairsForBalance[0]?.split('/')[1] || 'USDT';
+            const rawQuote = allPairsForBalance[0]?.split('/')[1] || 'USDT';
+            const quoteCurrency = rawQuote.split(':')[0]; // "USDT:USDT" → "USDT"
             const balance = await this.exchange.fetchBalance(quoteCurrency);
             walletBalances.set(quoteCurrency, balance.free);
         } catch (e) {
