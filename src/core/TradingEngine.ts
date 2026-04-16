@@ -105,9 +105,13 @@ export class TradingEngine {
         logger.info('🔌 Connecting to exchange and syncing time...');
         const isConnected = await this.exchange.testConnection();
         if (!isConnected) {
-            logger.error('❌ Failed to connect to exchange. Aborting start.');
-            this.isRunning = false;
-            return;
+            if (config.mode === 'paper') {
+                logger.warn('⚠️  Price feed check failed in paper mode — will retry on first trade cycle.');
+            } else {
+                logger.error('❌ Failed to connect to exchange. Aborting start.');
+                this.isRunning = false;
+                return;
+            }
         }
 
         // Initial learning from past futures trades

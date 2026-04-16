@@ -9,72 +9,64 @@ export class BybitExchange extends BaseExchange {
         exchangeLogger.info(`Initializing Bybit ${marketType.toUpperCase()} Exchange (Build: 2026-02-14 Dual Bot)`);
     }
 
-    // ── Binance REST fallback for paper mode when Bybit is geo-blocked ────────
-    private toBinanceSymbol(symbol: string): string {
-        // "SOL/USDT" or "SOL/USDT:USDT" → "SOLUSDT"
-        return symbol.split(':')[0].replace('/', '');
+    // ── Kraken fallback for paper mode when Bybit/Binance are geo-blocked ─────
+    // Kraken is US-licensed and accessible from US cloud servers.
+    private krakenExchange: ccxt.Exchange | null = null;
+
+    private getKraken(): ccxt.Exchange {
+        if (!this.krakenExchange) {
+            this.krakenExchange = new ccxt.kraken({ enableRateLimit: true, timeout: 15000 });
+        }
+        return this.krakenExchange;
     }
 
-    private async binanceTicker(symbol: string): Promise<import('./BaseExchange').Ticker> {
-        const s = this.toBinanceSymbol(symbol);
-        const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Binance ticker fetch failed: ${res.status}`);
-        const d: any = await res.json();
+    private toKrakenSymbol(symbol: string): string {
+        // "SOL/USDT:USDT" → "SOL/USDT"
+        return symbol.split(':')[0];
+    }
+
+    private async krakenTicker(symbol: string): Promise<import('./BaseExchange').Ticker> {
+        const k = this.getKraken();
+        const t = await k.fetchTicker(this.toKrakenSymbol(symbol));
         return {
             symbol,
-            bid: parseFloat(d.bidPrice) || parseFloat(d.lastPrice),
-            ask: parseFloat(d.askPrice) || parseFloat(d.lastPrice),
-            last: parseFloat(d.lastPrice),
-            volume: parseFloat(d.volume),
-            timestamp: Date.now(),
+            bid: t.bid || t.last || 0,
+            ask: t.ask || t.last || 0,
+            last: t.last || 0,
+            volume: t.baseVolume || 0,
+            timestamp: t.timestamp || Date.now(),
         };
     }
 
-    private async binanceOHLCV(symbol: string, timeframe: string, limit: number): Promise<import('../utils/indicators').OHLCV[]> {
-        const s = this.toBinanceSymbol(symbol);
-        // map Bybit timeframes to Binance intervals
-        const tfMap: Record<string, string> = {
-            '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m',
-            '30m': '30m', '1h': '1h', '2h': '2h', '4h': '4h',
-            '6h': '6h', '12h': '12h', '1d': '1d',
-        };
-        const interval = tfMap[timeframe] || '15m';
-        const url = `https://api.binance.com/api/v3/klines?symbol=${s}&interval=${interval}&limit=${limit}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Binance OHLCV fetch failed: ${res.status}`);
-        const candles = await res.json() as any[];
-        return candles.map(c => ({
-            timestamp: c[0],
-            open: parseFloat(c[1]),
-            high: parseFloat(c[2]),
-            low: parseFloat(c[3]),
-            close: parseFloat(c[4]),
-            volume: parseFloat(c[5]),
+    private async krakenOHLCV(symbol: string, timeframe: string, limit: number): Promise<import('../utils/indicators').OHLCV[]> {
+        const k = this.getKraken();
+        const candles = await k.fetchOHLCV(this.toKrakenSymbol(symbol), timeframe, undefined, limit);
+        return candles.map((c: any) => ({
+            timestamp: c[0], open: c[1], high: c[2], low: c[3], close: c[4], volume: c[5],
         }));
     }
 
-    // Override fetchTicker — fall back to Binance in paper mode if Bybit unreachable
+    // Override fetchTicker — fall back to Kraken in paper mode if Bybit unreachable
     async fetchTicker(symbol: string): Promise<import('./BaseExchange').Ticker> {
         try {
             return await super.fetchTicker(symbol);
         } catch (e: any) {
             if (config.mode === 'paper') {
-                exchangeLogger.warn(`Bybit fetchTicker failed (${e?.message?.slice(0,60)}…), using Binance fallback`);
-                return this.binanceTicker(symbol);
+                exchangeLogger.warn(`Bybit blocked, using Kraken for ${symbol}`);
+                return this.krakenTicker(symbol);
             }
             throw e;
         }
     }
 
-    // Override fetchOHLCV — fall back to Binance in paper mode if Bybit unreachable
+    // Override fetchOHLCV — fall back to Kraken in paper mode if Bybit unreachable
     async fetchOHLCV(symbol: string, timeframe = '15m', limit = 100): Promise<import('../utils/indicators').OHLCV[]> {
         try {
             return await super.fetchOHLCV(symbol, timeframe, limit);
         } catch (e: any) {
             if (config.mode === 'paper') {
-                exchangeLogger.warn(`Bybit fetchOHLCV failed (${e?.message?.slice(0,60)}…), using Binance fallback`);
-                return this.binanceOHLCV(symbol, timeframe, limit);
+                exchangeLogger.warn(`Bybit blocked, using Kraken OHLCV for ${symbol}`);
+                return this.krakenOHLCV(symbol, timeframe, limit);
             }
             throw e;
         }
@@ -407,15 +399,15 @@ export class BybitExchange extends BaseExchange {
     }
 
     async testConnection(): Promise<boolean> {
-        // Paper mode: verify Binance fallback is reachable instead of Bybit
+        // Paper mode: verify Kraken fallback is reachable instead of Bybit
         if (config.mode === 'paper') {
             try {
-                const ticker = await this.binanceTicker('SOL/USDT');
-                exchangeLogger.info(`✅ Binance price feed OK — SOL/USDT: $${ticker.last}`);
+                const ticker = await this.krakenTicker('SOL/USDT');
+                exchangeLogger.info(`✅ Kraken price feed OK — SOL/USDT: $${ticker.last}`);
                 return true;
             } catch (e: any) {
-                exchangeLogger.error(`Binance fallback also unreachable: ${e?.message}`);
-                return false;
+                exchangeLogger.warn(`Kraken fallback unreachable: ${e?.message} — will retry on first trade cycle`);
+                return true; // Don't block startup; trading loop will handle retries
             }
         }
 
