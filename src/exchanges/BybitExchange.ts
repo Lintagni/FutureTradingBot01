@@ -9,6 +9,77 @@ export class BybitExchange extends BaseExchange {
         exchangeLogger.info(`Initializing Bybit ${marketType.toUpperCase()} Exchange (Build: 2026-02-14 Dual Bot)`);
     }
 
+    // ── Binance REST fallback for paper mode when Bybit is geo-blocked ────────
+    private toBinanceSymbol(symbol: string): string {
+        // "SOL/USDT" or "SOL/USDT:USDT" → "SOLUSDT"
+        return symbol.split(':')[0].replace('/', '');
+    }
+
+    private async binanceTicker(symbol: string): Promise<import('./BaseExchange').Ticker> {
+        const s = this.toBinanceSymbol(symbol);
+        const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Binance ticker fetch failed: ${res.status}`);
+        const d: any = await res.json();
+        return {
+            symbol,
+            bid: parseFloat(d.bidPrice) || parseFloat(d.lastPrice),
+            ask: parseFloat(d.askPrice) || parseFloat(d.lastPrice),
+            last: parseFloat(d.lastPrice),
+            volume: parseFloat(d.volume),
+            timestamp: Date.now(),
+        };
+    }
+
+    private async binanceOHLCV(symbol: string, timeframe: string, limit: number): Promise<import('../utils/indicators').OHLCV[]> {
+        const s = this.toBinanceSymbol(symbol);
+        // map Bybit timeframes to Binance intervals
+        const tfMap: Record<string, string> = {
+            '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m',
+            '30m': '30m', '1h': '1h', '2h': '2h', '4h': '4h',
+            '6h': '6h', '12h': '12h', '1d': '1d',
+        };
+        const interval = tfMap[timeframe] || '15m';
+        const url = `https://api.binance.com/api/v3/klines?symbol=${s}&interval=${interval}&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Binance OHLCV fetch failed: ${res.status}`);
+        const candles = await res.json() as any[];
+        return candles.map(c => ({
+            timestamp: c[0],
+            open: parseFloat(c[1]),
+            high: parseFloat(c[2]),
+            low: parseFloat(c[3]),
+            close: parseFloat(c[4]),
+            volume: parseFloat(c[5]),
+        }));
+    }
+
+    // Override fetchTicker — fall back to Binance in paper mode if Bybit unreachable
+    async fetchTicker(symbol: string): Promise<import('./BaseExchange').Ticker> {
+        try {
+            return await super.fetchTicker(symbol);
+        } catch (e: any) {
+            if (config.mode === 'paper') {
+                exchangeLogger.warn(`Bybit fetchTicker failed (${e?.message?.slice(0,60)}…), using Binance fallback`);
+                return this.binanceTicker(symbol);
+            }
+            throw e;
+        }
+    }
+
+    // Override fetchOHLCV — fall back to Binance in paper mode if Bybit unreachable
+    async fetchOHLCV(symbol: string, timeframe = '15m', limit = 100): Promise<import('../utils/indicators').OHLCV[]> {
+        try {
+            return await super.fetchOHLCV(symbol, timeframe, limit);
+        } catch (e: any) {
+            if (config.mode === 'paper') {
+                exchangeLogger.warn(`Bybit fetchOHLCV failed (${e?.message?.slice(0,60)}…), using Binance fallback`);
+                return this.binanceOHLCV(symbol, timeframe, limit);
+            }
+            throw e;
+        }
+    }
+
     private getExchangeSymbol(symbol: string): string {
         if (!symbol || typeof symbol !== 'string') return symbol;
 
