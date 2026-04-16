@@ -46,10 +46,12 @@ export class BybitExchange extends BaseExchange {
 
         const exchange = new ccxt.bybit(options);
 
-        // Use setSandboxMode to switch to testnet (this sets the correct URLs internally)
+        // NOTE: We do NOT use setSandboxMode / testnet.
+        // Bybit testnet is geo-blocked (CloudFront 403) on most cloud providers.
+        // Paper trading is fully simulated at the order level — mainnet public APIs
+        // are used for real price data only.  No real orders are ever placed.
         if (config.mode === 'paper') {
-            exchange.setSandboxMode(true);
-            exchangeLogger.info('Using Bybit Testnet (sandbox mode) for paper trading');
+            exchangeLogger.info('Paper trading mode: using mainnet for prices, orders are simulated locally');
         }
 
         return exchange;
@@ -125,7 +127,31 @@ export class BybitExchange extends BaseExchange {
         }
     }
 
+    // ── Paper trading: skip leverage/margin API calls ──────────────────────
+    async setLeverage(symbol: string, leverage: number): Promise<void> {
+        if (config.mode === 'paper') {
+            exchangeLogger.info(`[PAPER] setLeverage ${leverage}x ${symbol} (simulated)`);
+            return;
+        }
+        return super.setLeverage(symbol, leverage);
+    }
+
+    async setMarginMode(symbol: string, marginMode: 'isolated' | 'cross'): Promise<void> {
+        if (config.mode === 'paper') {
+            exchangeLogger.info(`[PAPER] setMarginMode ${marginMode} ${symbol} (simulated)`);
+            return;
+        }
+        return super.setMarginMode(symbol, marginMode);
+    }
+
     async fetchBalance(currency: string = 'USDT'): Promise<Balance> {
+        // Paper mode: return a simulated balance — no real API call needed
+        if (config.mode === 'paper') {
+            const paperBalance = parseFloat(process.env.PAPER_INITIAL_BALANCE || '10000');
+            exchangeLogger.info(`[PAPER] fetchBalance ${currency}: $${paperBalance} (simulated)`);
+            return { free: paperBalance, used: 0, total: paperBalance };
+        }
+
         exchangeLogger.info(`[Bybit] fetchBalance called for ${currency}`);
         const balance = await this.exchange.fetchBalance();
         const ccxtBalance = (balance as any)[currency] || { free: 0, used: 0, total: 0 };
@@ -181,12 +207,30 @@ export class BybitExchange extends BaseExchange {
         }
     }
 
+    private async paperFill(symbol: string, side: 'buy' | 'sell', amount: number): Promise<any> {
+        const exchangeSymbol = this.getExchangeSymbol(symbol);
+        const ticker = await this.fetchTicker(exchangeSymbol);
+        const price = ticker.last;
+        const fee = price * amount * 0.0006; // 0.06% taker fee
+        exchangeLogger.info(`[PAPER] ${side.toUpperCase()} ${amount} ${symbol} @ $${price} (simulated)`);
+        return {
+            id: `PAPER-${Date.now()}`,
+            symbol, side, type: 'market',
+            price, average: price, amount,
+            filled: amount, cost: price * amount,
+            fee: { cost: fee, currency: 'USDT' },
+            status: 'closed', timestamp: Date.now(),
+        };
+    }
+
     async createMarketBuyOrder(
         symbol: string,
         amount: number,
         stopLoss?: number,
         takeProfit?: number
     ): Promise<any> {
+        if (config.mode === 'paper') return this.paperFill(symbol, 'buy', amount);
+
         const exchangeSymbol = this.getExchangeSymbol(symbol);
         const category = this.marketType === 'futures' ? 'linear' : 'spot';
         const params: any = { category };
@@ -222,6 +266,8 @@ export class BybitExchange extends BaseExchange {
         stopLoss?: number,
         takeProfit?: number
     ): Promise<any> {
+        if (config.mode === 'paper') return this.paperFill(symbol, 'sell', amount);
+
         const exchangeSymbol = this.getExchangeSymbol(symbol);
         const category = this.marketType === 'futures' ? 'linear' : 'spot';
         const params: any = { category };
