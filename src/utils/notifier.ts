@@ -11,26 +11,33 @@ class Notifier {
         if (config.notifications.telegram.enabled) {
             this.telegramBot = new TelegramBot(config.notifications.telegram.botToken, {
                 polling: {
-                    interval: 2000, // Check every 2 seconds (reduces connection load)
+                    interval: 2000,
                     autoStart: true,
                     params: {
-                        timeout: 10, // Long polling timeout in seconds
+                        timeout: 10,
+                        allowed_updates: ['message', 'callback_query'],
                     }
                 }
             });
             this.chatId = config.notifications.telegram.chatId;
 
-            // Handle polling errors gracefully (prevents crashes from ECONNRESET, etc.)
+            // Handle polling errors gracefully
             this.telegramBot.on('polling_error', (error: any) => {
-                // Log connection errors as warnings instead of crashing
-                if (error.code === 'EFATAL' || error.message?.includes('ECONNRESET')) {
-                    logger.warn('⚠️ Telegram polling connection reset. Will auto-retry...', error.message);
+                if (error.code === 'ETELEGRAM' && error.message?.includes('409')) {
+                    // Another instance is still running — stop polling and retry after 5s
+                    logger.warn('⚠️ Telegram 409 conflict (old instance still shutting down) — retrying in 5s...');
+                    this.telegramBot!.stopPolling().then(() => {
+                        setTimeout(() => {
+                            this.telegramBot!.startPolling();
+                        }, 5000);
+                    }).catch(() => {});
+                } else if (error.code === 'EFATAL' || error.message?.includes('ECONNRESET')) {
+                    logger.warn('⚠️ Telegram polling connection reset. Will auto-retry...');
                 } else if (error.code === 'ETIMEDOUT') {
-                    logger.warn('⚠️ Telegram polling timeout. Will auto-retry...', error.message);
+                    logger.warn('⚠️ Telegram polling timeout. Will auto-retry...');
                 } else {
-                    logger.warn('⚠️ Telegram polling error:', error);
+                    logger.warn('⚠️ Telegram polling error:', error.message || error);
                 }
-                // The library will automatically retry, so we just log and continue
             });
 
             // DEBUG: Log all incoming messages
