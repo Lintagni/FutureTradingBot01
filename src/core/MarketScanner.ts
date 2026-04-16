@@ -55,8 +55,8 @@ export class MarketScanner {
                 .filter((ticker: any) => {
                     const symbol: string = ticker.symbol || '';
 
-                    // Must be USDT pair
-                    if (!symbol.endsWith('/USDT')) return false;
+                    // Must be USDT pair (handles both spot "BTC/USDT" and futures "BTC/USDT:USDT")
+                    if (!symbol.includes('/USDT')) return false;
 
                     // Extract base currency
                     const base = symbol.split('/')[0];
