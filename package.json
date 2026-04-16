@@ -1,0 +1,53 @@
+{
+  "name": "ai-crypto-trading-bot",
+  "version": "1.0.0",
+  "description": "AI-powered cryptocurrency trading bot for Binance and Bybit",
+  "main": "dist/index.js",
+  "scripts": {
+    "postinstall": "node scripts/setup.js",
+    "prestart": "npm run build",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "trade": "npm start",
+    "paper-trade": "cross-env NODE_ENV=paper tsx src/index.ts",
+    "backtest": "tsx src/backtesting/backtest.ts",
+    "train": "tsx src/ai/train.ts",
+    "test": "jest",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "keywords": [
+    "trading",
+    "bot",
+    "cryptocurrency",
+    "binance",
+    "bybit",
+    "ai",
+    "machine-learning"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "ccxt": "^4.4.31",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "ml-random-forest": "^2.1.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "technicalindicators": "^3.1.0",
+    "winston": "^3.17.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@types/node-telegram-bot-api": "^0.64.7",
+    "@types/ws": "^8.5.13",
+    "cross-env": "^10.1.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

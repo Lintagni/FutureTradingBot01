@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Trade {
+  id            String   @id @default(uuid())
+  exchange      String
+  symbol        String
+  side          String   // 'buy' or 'sell'
+  type          String   // 'market' or 'limit'
+  amount        Float
+  price         Float
+  cost          Float
+  fee           Float    @default(0)
+  
+  // Entry details
+  entryPrice    Float
+  entryTime     DateTime
+  
+  // Exit details (nullable for open positions)
+  exitPrice     Float?
+  exitTime      DateTime?
+  
+  // P&L
+  realizedPnl   Float?
+  unrealizedPnl Float?
+  pnlPercentage Float?
+  
+  // Strategy info
+  strategy      String
+  signal        String   // 'long', 'short', 'close'
+  confidence    Float?
+  
+  // Status
+  status        String   // 'open', 'closed', 'cancelled'
+
+  marketType    String   @default("spot") // 'spot' or 'futures'
+  leverage      Int?                      // Futures leverage used (e.g. 3 for 3x, null for spot)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([symbol, status, marketType])
+  @@index([createdAt])
+}
+
+model Signal {
+  id          String   @id @default(uuid())
+  exchange    String
+  symbol      String
+  strategy    String
+  signal      String   // 'buy', 'sell', 'hold'
+  confidence  Float
+  price       Float
+  indicators  String   // JSON string of indicator values
+  executed    Boolean  @default(false)
+  marketType  String   @default("spot") @map("market_type") // Map to underscore for consistency if desired, or keep camelCase
+  createdAt   DateTime @default(now())
+  
+  @@index([symbol, createdAt, marketType])
+}
+
+model MarketData {
+  id        String   @id @default(uuid())
+  exchange  String
+  symbol    String
+  timeframe String
+  timestamp DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  
+  @@unique([exchange, symbol, timeframe, timestamp])
+  @@index([symbol, timestamp])
+}
+
+model Performance {
+  id              String   @id @default(uuid())
+  date            DateTime @unique
+  totalTrades     Int
+  winningTrades   Int
+  losingTrades    Int
+  winRate         Float
+  totalPnl        Float
+  totalFees       Float
+  netPnl          Float
+  maxDrawdown     Float
+  sharpeRatio     Float?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([date])
+}
+
+model BotState {
+  id                String   @id @default(uuid())
+  isRunning         Boolean  @default(false)
+  lastHeartbeat     DateTime @default(now())
+  totalCapital      Float
+  availableCapital  Float
+  dailyPnl          Float    @default(0)
+  dailyLoss         Float    @default(0)
+  openPositions     Int      @default(0)
+  
+  updatedAt         DateTime @updatedAt
+}

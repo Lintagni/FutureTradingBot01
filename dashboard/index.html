@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Trading Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #05070a;
+            --card-bg: rgba(17, 21, 28, 0.8);
+            --accent: #3a86ff;
+            --accent-glow: rgba(58, 134, 255, 0.4);
+            --success: #00f5d4;
+            --success-glow: rgba(0, 245, 212, 0.3);
+            --error: #ff0054;
+            --text-main: #f8f9fa;
+            --text-dim: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+            --glass: rgba(255, 255, 255, 0.03);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(58, 134, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(0, 245, 212, 0.05) 0%, transparent 40%);
+            min-height: 100vh;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #fff 0%, #aaa 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--glass);
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 10px var(--success-glow);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.6;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(58, 134, 255, 0.3);
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.03));
+            pointer-events: none;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .stat-change {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .up {
+            color: var(--success);
+        }
+
+        .down {
+            color: var(--error);
+        }
+
+        /* Positions Table */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 1.25rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .symbol-cell {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .symbol-main {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .symbol-sub {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .pnl-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .pnl-badge.positive {
+            background: rgba(0, 245, 212, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(0, 245, 212, 0.2);
+        }
+
+        .pnl-badge.negative {
+            background: rgba(255, 0, 84, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(255, 0, 84, 0.2);
+        }
+
+        /* Log Stream */
+        .logs {
+            background: #000;
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            color: #d1d5db;
+        }
+
+        .log-entry {
+            margin-bottom: 0.4rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .log-time {
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        .log-info {
+            color: var(--accent);
+        }
+
+        .log-error {
+            color: var(--error);
+        }
+
+        .log-msg {
+            word-break: break-all;
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            header {
+                margin-bottom: 2rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 1rem;
+            }
+
+            th:nth-child(4),
+            td:nth-child(4),
+            th:nth-child(5),
+            td:nth-child(5) {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>ANTIGRAVITY</h1>
+            </div>
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                <span id="bot-status">BOT ACTIVE</span>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Equity</div>
+                <div class="stat-value" id="stat-total-equity">$0.00</div>
+                <div class="stat-change up" id="stat-equity-change">
+                    <span>↑ 0.00%</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total P&L</div>
+                <div class="stat-value" id="stat-total-pnl">$0.00</div>
+                <div class="stat-change" id="stat-pnl-change">
+                    <span>Active Trades: 0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Win Rate</div>
+                <div class="stat-value" id="stat-win-rate">0.0%</div>
+                <div class="stat-change up">
+                    <span>Lifetime performance</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Exchange</div>
+                <div class="stat-value">Bybit</div>
+                <div class="stat-change">
+                    <span id="exchange-mode">FUTURES / PAPER</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Leverage</div>
+                <div class="stat-value" id="stat-leverage">3x</div>
+                <div class="stat-change">
+                    <span id="margin-mode">isolated margin</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Open Positions</h2>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Entry Price</th>
+                            <th>Amount</th>
+                            <th>Market Price</th>
+                            <th>Stop Loss</th>
+                            <th>Take Profit</th>
+                            <th>P&L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-table">
+                        <!-- Positions will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Live Activity Log</h2>
+            </div>
+            <div class="logs" id="log-container">
+                <!-- Logs will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}`);
+        const logContainer = document.getElementById('log-container');
+        const positionsTable = document.getElementById('positions-table');
+
+        function addLog(msg, level = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="log-${level}">[${level.toUpperCase()}]</span>
+                <span class="log-msg">${msg}</span>
+            `;
+            logContainer.prepend(entry);
+
+            // Keep only last 50 logs
+            if (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+        }
+
+        function updatePositions(positions) {
+            positionsTable.innerHTML = '';
+            if (positions.length === 0) {
+                positionsTable.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 3rem;">No active positions</td></tr>';
+                return;
+            }
+
+            positions.forEach(pos => {
+                const isShort = pos.side === 'sell';
+                // Direction-aware profit: LONG profits when price rises, SHORT profits when price falls
+                const profit = pos.currentPrice
+                    ? (isShort
+                        ? (pos.entryPrice - pos.currentPrice) / pos.entryPrice * 100
+                        : (pos.currentPrice - pos.entryPrice) / pos.entryPrice * 100)
+                    : 0;
+                const pnlClass = profit >= 0 ? 'positive' : 'negative';
+                const dirLabel = isShort ? '⬇ SHORT' : '⬆ LONG';
+                const dirStyle = isShort ? 'color:#f87171' : 'color:#4ade80';
+                const leverage = pos.leverage ? `${pos.leverage}x` : '';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="symbol-cell">
+                            <span class="symbol-main">${pos.symbol}</span>
+                            <span class="symbol-sub" style="${dirStyle}">${dirLabel} ${leverage}</span>
+                        </div>
+                    </td>
+                    <td>$${pos.entryPrice.toFixed(4)}</td>
+                    <td>${pos.amount.toFixed(4)}</td>
+                    <td>$${pos.currentPrice ? pos.currentPrice.toFixed(4) : '---'}</td>
+                    <td>$${pos.stopLoss.toFixed(4)}</td>
+                    <td>$${pos.takeProfit ? pos.takeProfit.toFixed(4) : '---'}</td>
+                    <td>
+                        <span class="pnl-badge ${pnlClass}">
+                            ${profit >= 0 ? '+' : ''}${profit.toFixed(2)}%
+                        </span>
+                    </td>
+                `;
+                positionsTable.appendChild(row);
+            });
+        }
+
+        ws.onopen = () => {
+            addLog('WebSocket connection established');
+            document.getElementById('bot-status').innerText = 'BOT CONNECTED';
+        };
+
+        ws.onclose = () => {
+            addLog('WebSocket connection closed', 'error');
+            document.getElementById('bot-status').innerText = 'DISCONNECTED';
+            document.querySelector('.status-dot').style.backgroundColor = 'var(--error)';
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            switch (data.type) {
+                case 'log':
+                    addLog(data.data.message, data.data.level);
+                    break;
+                case 'positions':
+                    updatePositions(data.data);
+                    break;
+                case 'stats':
+                    document.getElementById('stat-total-equity').innerText = `$${data.data.equity.toFixed(2)}`;
+                    document.getElementById('stat-total-pnl').innerText = `$${data.data.pnl.toFixed(2)}`;
+                    break;
+            }
+        };
+
+        // Initial welcome
+        addLog('Dashboard ready v1.0.0');
+    </script>
+</body>
+
+</html>
