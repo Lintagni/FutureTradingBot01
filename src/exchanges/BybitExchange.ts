@@ -44,22 +44,12 @@ export class BybitExchange extends BaseExchange {
             options.options.defaultSettle = 'USDT';
         }
 
-        // Use testnet for paper trading
-        if (config.mode === 'paper') {
-            options.urls = {
-                api: {
-                    public: 'https://api-testnet.bybit.com',
-                    private: 'https://api-testnet.bybit.com',
-                },
-            };
-            exchangeLogger.info('Using Bybit Testnet for paper trading');
-        }
-
         const exchange = new ccxt.bybit(options);
 
-        // Use setSandboxMode if available
-        if (config.mode === 'paper' && exchange.setSandboxMode) {
+        // Use setSandboxMode to switch to testnet (this sets the correct URLs internally)
+        if (config.mode === 'paper') {
             exchange.setSandboxMode(true);
+            exchangeLogger.info('Using Bybit Testnet (sandbox mode) for paper trading');
         }
 
         return exchange;
@@ -303,12 +293,18 @@ export class BybitExchange extends BaseExchange {
             await this.syncTime();
 
             // Test actual connectivity with a small private call if possible
-            await this.exchange.fetchBalance({ coin: 'USDT' }).catch(() => { });
+            await this.exchange.fetchBalance({ coin: 'USDT' }).catch((e: any) => {
+                exchangeLogger.warn('fetchBalance check failed (non-fatal):', e?.message || e);
+            });
 
             exchangeLogger.info('✅ Bybit Connected and Synchronized');
             return true;
-        } catch (error) {
-            exchangeLogger.error('Bybit Connection Failed:', error);
+        } catch (error: any) {
+            exchangeLogger.error('Bybit Connection Failed:', {
+                message: error?.message,
+                type: error?.constructor?.name,
+                details: error?.toString(),
+            });
             return false;
         }
     }
