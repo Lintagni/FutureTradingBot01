@@ -111,7 +111,11 @@ class Notifier {
             if (s.positionDetails && s.positionDetails.length > 0) {
                 for (const pos of s.positionDetails) {
                     const sideEmoji = pos.side === 'buy' ? '🟢 LONG' : '🔴 SHORT';
-                    positionsSection += `\n  ${sideEmoji} ${pos.symbol} @ $${pos.entryPrice.toFixed(2)}`;
+                    const curPrice = pos.currentPrice ? ` → $${pos.currentPrice.toFixed(4)}` : '';
+                    const pnlStr = pos.pnlPct != null && pos.pnlPct !== 0
+                        ? ` (${pos.pnlPct >= 0 ? '+' : ''}${pos.pnlPct.toFixed(2)}%)`
+                        : '';
+                    positionsSection += `\n  ${sideEmoji} ${pos.symbol} @ $${pos.entryPrice.toFixed(4)}${curPrice}${pnlStr}`;
                 }
             } else {
                 positionsSection = '\n  (No open positions)';
@@ -139,7 +143,8 @@ class Notifier {
 💹 *Performance*
 Daily P&L: ${pnlEmoji} ${pnlSign}$${s.dailyPnL.toFixed(2)}
 Total P&L: ${totalPnlSign}$${s.totalPnL.toFixed(2)}
-Win Rate: ${s.recentWinRate.toFixed(1)}% (Recent) | ${s.lifetimeWinRate.toFixed(1)}% (Lifetime)
+Unrealized: ${s.unrealizedPnL != null ? ((s.unrealizedPnL >= 0 ? '+' : '') + '$' + Math.abs(s.unrealizedPnL).toFixed(2)) : '—'}
+Win Rate: ${(s.recentWinRate ?? 0).toFixed(1)}% (Recent) | ${(s.lifetimeWinRate ?? 0).toFixed(1)}% (Lifetime)
 
 📈 *Open Positions (${s.openPositions}):*${positionsSection}
 

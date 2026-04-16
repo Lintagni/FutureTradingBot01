@@ -49,6 +49,7 @@ export class WebServer {
             monitoredPairs: status.monitoredPairs,
             dailyPnL: status.dailyPnL,
             totalPnL: status.totalPnL,
+            unrealizedPnL: status.unrealizedPnL,
             recentWinRate: status.recentWinRate,
             lifetimeWinRate: status.lifetimeWinRate,
             walletBalances: status.walletBalances instanceof Map
@@ -120,7 +121,17 @@ export class WebServer {
             ws.send(JSON.stringify({ type: 'connected', mode: config.mode }));
             // Send current state immediately on connect
             this.broadcastState();
-            ws.on('close', () => logger.info('Dashboard client disconnected'));
+
+            // Keep-alive pings every 25 s — Fly.io proxy closes idle WS after ~60 s
+            const pingInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) ws.ping();
+            }, 25000);
+
+            ws.on('pong', () => {}); // connection confirmed alive
+            ws.on('close', () => {
+                clearInterval(pingInterval);
+                logger.info('Dashboard client disconnected');
+            });
         });
     }
 
@@ -131,6 +142,11 @@ export class WebServer {
                 client.send(message);
             }
         });
+    }
+
+    /** Push a log line to all connected dashboards */
+    public pushLog(msg: string, level: 'info' | 'warn' | 'error' = 'info') {
+        this.broadcast('log', { msg, level });
     }
 
     public start() {

@@ -341,16 +341,22 @@ function connect() {
   ws.onopen = () => {
     setConn(true);
     clearTimeout(reconnectTimer);
+    addLog('Live feed connected', 'info');
   };
   ws.onclose = () => {
     setConn(false);
+    addLog('Live feed disconnected — reconnecting in 4s…', 'warn');
     reconnectTimer = setTimeout(connect, 4000);
   };
+  ws.onerror = () => {};  // suppress console noise; onclose fires after
   ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'state') applyState(msg.data);
-    if (msg.type === 'positions') updatePositions(msg.data);
-    if (msg.type === 'signal') addLog(`Signal: ${msg.data.symbol} → ${msg.data.signal} (${(msg.data.confidence*100).toFixed(1)}%)`, 'info');
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') applyState(msg.data);
+      if (msg.type === 'positions') updatePositions(msg.data);
+      if (msg.type === 'log') addLog(msg.data.msg, msg.data.level || 'info');
+      if (msg.type === 'signal') addLog(`Signal: ${msg.data.symbol} → ${msg.data.signal} (${(msg.data.confidence*100).toFixed(1)}%)`, 'info');
+    } catch (_) {}
   };
 }
 connect();
@@ -400,8 +406,11 @@ function applyState(s) {
   // Stats
   const bal = s.walletBalances && s.walletBalances['USDT'];
   setEl('s-balance', bal != null ? '$' + bal.toFixed(2) : '—');
-  setPnl('s-daily', s.dailyPnL);
-  setPnl('s-total', s.totalPnL);
+  // Daily P&L = closed trades today; show unrealized if no closed trades yet
+  const shownDaily = (s.dailyPnL || 0) + (s.unrealizedPnL || 0);
+  setPnl('s-daily', shownDaily);
+  const shownTotal = (s.totalPnL || 0) + (s.unrealizedPnL || 0);
+  setPnl('s-total', shownTotal);
 
   const wr = s.lifetimeWinRate;
   const wrEl = document.getElementById('s-winrate');

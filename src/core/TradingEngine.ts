@@ -620,6 +620,7 @@ export class TradingEngine {
                 });
 
                 tradeLogger.info(`✅ ${dirLabel} position opened: ${symbol}`);
+                webServer.pushLog(`🟢 ${dirLabel} opened: ${symbol} @ $${order.price.toFixed(4)} | ${leverage}x`, 'info');
                 this.broadcastPositions();
             } catch (error) {
                 logger.error(`Failed to open ${dirLabel} position for ${symbol}:`, error);
@@ -890,7 +891,10 @@ export class TradingEngine {
             tradeLogger.info(
                 `✅ Position closed: ${symbol} | P & L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnl >= 0 ? '+' : ''}${pnlPercentage.toFixed(2)}%) | Reason: ${reason}`
             );
-
+            webServer.pushLog(
+                `${pnl >= 0 ? '💰' : '📉'} ${dirLabel} closed: ${symbol} | P&L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercentage.toFixed(2)}%) | ${reason}`,
+                pnl >= 0 ? 'info' : 'warn'
+            );
             this.broadcastPositions();
         } catch (error) {
             logger.error(`Failed to close position for ${symbol}: `, error);
@@ -899,20 +903,18 @@ export class TradingEngine {
     }
 
     private broadcastPositions() {
-        const positionsArr = Array.from(this.positions.values()).map(p => ({
-            ...p,
-            currentPrice: undefined // Will be filled by dashboard if needed, or we could add it here
-        }));
+        const positionsArr = Array.from(this.positions.values());
         webServer.broadcast('positions', positionsArr);
     }
 
     async getStatus(): Promise<{
         isRunning: boolean;
         openPositions: number;
-        positionDetails: Array<{ symbol: string; side: string; entryPrice: number; pnlPct: number }>;
+        positionDetails: Array<{ symbol: string; side: string; entryPrice: number; currentPrice: number | null; pnlPct: number; unrealizedPnl: number }>;
         monitoredPairs: string[];
         dailyPnL: number;
         totalPnL: number;
+        unrealizedPnL: number;
         recentWinRate: number;
         lifetimeWinRate: number;
         walletBalances: Map<string, number>;
@@ -924,14 +926,31 @@ export class TradingEngine {
 
         const monitoredPairs = this.activePairs;
 
-        // Collect position details
-        const positionDetails: Array<{ symbol: string; side: string; entryPrice: number; pnlPct: number }> = [];
+        // Collect position details with live price and unrealized P&L
+        const positionDetails: Array<{ symbol: string; side: string; entryPrice: number; currentPrice: number | null; pnlPct: number; unrealizedPnl: number }> = [];
         for (const [sym, pos] of this.positions.entries()) {
+            let currentPrice: number | null = null;
+            let pnlPct = 0;
+            let unrealizedPnl = 0;
+            try {
+                const ticker = await this.exchange.fetchTicker(sym);
+                currentPrice = ticker.last;
+                if (currentPrice && pos.entryPrice > 0) {
+                    const priceDiff = pos.side === 'buy'
+                        ? (currentPrice - pos.entryPrice) / pos.entryPrice
+                        : (pos.entryPrice - currentPrice) / pos.entryPrice;
+                    pnlPct = priceDiff * 100 * pos.leverage;
+                    // Approximate unrealized P&L in USDT (entry notional * raw % move * leverage)
+                    unrealizedPnl = pos.entryPrice * pos.amount * priceDiff * pos.leverage;
+                }
+            } catch (_) { /* non-fatal — show entry price only */ }
             positionDetails.push({
                 symbol: sym,
                 side: pos.side,
                 entryPrice: pos.entryPrice,
-                pnlPct: 0, // Will be enriched below
+                currentPrice,
+                pnlPct,
+                unrealizedPnl,
             });
         }
 
@@ -964,6 +983,8 @@ export class TradingEngine {
             logger.warn(`Failed to fetch quote balance: ${e}`);
         }
 
+        const unrealizedPnL = positionDetails.reduce((sum, p) => sum + (p.unrealizedPnl || 0), 0);
+
         return {
             isRunning: this.isRunning,
             openPositions: this.positions.size,
@@ -971,6 +992,7 @@ export class TradingEngine {
             monitoredPairs,
             dailyPnL,
             totalPnL,
+            unrealizedPnL,
             recentWinRate,
             lifetimeWinRate,
             walletBalances,
