@@ -511,7 +511,11 @@ export class TradingEngine {
             return;
         }
 
-        // --- AI GATEKEEPER (MANDATORY FILTER) ---
+        // --- AI SCORE (size-scaling, not hard gate) ---
+        // The AI model earns veto power as it accumulates own-trade data (Phase B).
+        // Until then, a model trained only on candle data is too pessimistic (predicts
+        // loss for ~everything because ATR×4 TP is rarely hit in training windows).
+        // Hard gates: quality score + HTF confluence + funding filter (below).
         const features = extractFeatures(
             signal.indicators,
             signal.price,
@@ -520,17 +524,20 @@ export class TradingEngine {
         );
 
         const aiScore = aiLearning.getPrediction(features);
-        logger.info(`🤖 AI Prediction (${dirLabel}): ${(aiScore * 100).toFixed(1)}% chance of profit (Threshold: ${(baseThreshold * 100).toFixed(0)}%)`);
-
-        if (aiScore < baseThreshold) {
-            logger.warn(`❌ AI REJECTED ${dirLabel} trade for ${symbol}: Score ${(aiScore * 100).toFixed(1)}% < Threshold ${(baseThreshold * 100).toFixed(0)}%`);
-            return;
-        }
+        logger.info(`🤖 AI Score (${dirLabel}): ${(aiScore * 100).toFixed(1)}% | Threshold: ${(baseThreshold * 100).toFixed(0)}%`);
 
         let aiSizeMultiplier = 1.0;
-        if (aiScore > 0.75) {
+        if (aiScore < 0.20) {
+            // Only hard-block when model is very confident it's a loss
+            logger.warn(`❌ AI strongly predicts loss for ${symbol} (${(aiScore * 100).toFixed(1)}%) — skipping`);
+            return;
+        } else if (aiScore < baseThreshold) {
+            // Below threshold but not a strong loss signal — reduce size, still trade
+            aiSizeMultiplier = 0.8;
+            logger.info(`⚠️ AI below threshold (${(aiScore * 100).toFixed(1)}%) — trading with 80% size`);
+        } else if (aiScore > 0.75) {
             aiSizeMultiplier = 1.2;
-            logger.info(`🚀 AI is highly confident (${(aiScore * 100).toFixed(1)}%) — boosting position size to 120%`);
+            logger.info(`🚀 AI highly confident (${(aiScore * 100).toFixed(1)}%) — boosting size to 120%`);
         }
 
         // ─── 1. Funding Rate Filter ────────────────────────────────────────────
@@ -959,18 +966,24 @@ export class TradingEngine {
         let score = 0;
         const parts: string[] = [];
 
-        // HTF 1h alignment (25pts)
+        // HTF 1h alignment (25pts) — neutral 12pts when data unavailable
         if (htfBullish1h !== null) {
             const pts = ((isLong && htfBullish1h) || (!isLong && !htfBullish1h)) ? 25 : 0;
             score += pts;
             parts.push(`1h:${pts}`);
+        } else {
+            score += 12; // neutral — can't confirm or deny
+            parts.push(`1h:12(n/a)`);
         }
 
-        // HTF 4h alignment (25pts)
+        // HTF 4h alignment (25pts) — neutral 12pts when data unavailable
         if (htfBullish4h !== null) {
             const pts = ((isLong && htfBullish4h) || (!isLong && !htfBullish4h)) ? 25 : 0;
             score += pts;
             parts.push(`4h:${pts}`);
+        } else {
+            score += 12; // neutral
+            parts.push(`4h:12(n/a)`);
         }
 
         // Volume surge (20pts)
