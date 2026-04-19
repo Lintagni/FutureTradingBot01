@@ -296,6 +296,64 @@ export class BybitExchange extends BaseExchange {
         };
     }
 
+    /** "SOL/USDT:USDT" → "SOLUSDT" for Bybit REST endpoints */
+    private toBybitRaw(symbol: string): string {
+        return symbol.split('/')[0] + 'USDT';
+    }
+
+    // ─── Funding rate cache (5-minute TTL) ───────────────────────────────────
+    private fundingCache: Map<string, { rate: number; cachedAt: number }> = new Map();
+
+    /**
+     * Get current funding rate for a symbol.
+     * Returns the rate as a decimal (e.g. 0.0001 = 0.01%).
+     * Positive = longs pay shorts (crowded long). Negative = shorts pay longs.
+     */
+    async getFundingRate(symbol: string): Promise<number | null> {
+        const cached = this.fundingCache.get(symbol);
+        if (cached && Date.now() - cached.cachedAt < 5 * 60 * 1000) return cached.rate;
+        try {
+            const raw = this.toBybitRaw(symbol);
+            const resp = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${raw}`);
+            const json: any = await resp.json();
+            const item = json?.result?.list?.[0];
+            if (!item) return null;
+            const rate = parseFloat(item.fundingRate || '0');
+            this.fundingCache.set(symbol, { rate, cachedAt: Date.now() });
+            return rate;
+        } catch {
+            return null;
+        }
+    }
+
+    // ─── Open Interest cache (5-minute TTL) ──────────────────────────────────
+    private oiCache: Map<string, { change: 'rising' | 'falling' | 'neutral'; cachedAt: number }> = new Map();
+
+    /**
+     * Compare current vs previous hourly Open Interest.
+     * Returns 'rising' (institutional accumulation) or 'falling' (unwinding).
+     */
+    async getOpenInterestChange(symbol: string): Promise<'rising' | 'falling' | 'neutral'> {
+        const cached = this.oiCache.get(symbol);
+        if (cached && Date.now() - cached.cachedAt < 5 * 60 * 1000) return cached.change;
+        try {
+            const raw = this.toBybitRaw(symbol);
+            const resp = await fetch(
+                `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${raw}&intervalTime=1h&limit=2`
+            );
+            const json: any = await resp.json();
+            const list: any[] = json?.result?.list || [];
+            if (list.length < 2) return 'neutral';
+            const latest = parseFloat(list[0].openInterest || '0');
+            const prev   = parseFloat(list[1].openInterest || '0');
+            const change = latest > prev * 1.005 ? 'rising' : latest < prev * 0.995 ? 'falling' : 'neutral';
+            this.oiCache.set(symbol, { change, cachedAt: Date.now() });
+            return change;
+        } catch {
+            return 'neutral';
+        }
+    }
+
     async getTradingFee(symbol: string): Promise<number> {
         try {
             const exchangeSymbol = this.getExchangeSymbol(symbol);

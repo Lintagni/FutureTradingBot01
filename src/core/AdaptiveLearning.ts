@@ -148,12 +148,28 @@ export class AdaptiveLearning {
     }
 
     /**
-     * Get the confidence threshold adjustment
-     * Win rate no longer restricts trading - always use config threshold
+     * Get the regime-aware confidence threshold.
+     * Base = config threshold. Additively raised by win-rate, Fear&Greed extremes, and high funding.
+     * Capped at 0.75 to prevent the bot from being permanently blocked.
      */
-    getConfidenceThreshold(_marketType: string = 'spot'): number {
-        // Always use config threshold - no win rate gating
-        return config.strategy.mlConfidenceThreshold || 0.35;
+    getConfidenceThreshold(_marketType: string = 'spot', fundingRate?: number, fearGreed?: number): number {
+        let threshold = config.strategy.mlConfidenceThreshold || 0.55;
+        const state = this.getState(_marketType);
+
+        // Poor win rate penalty
+        if (state.totalTrades >= 10 && state.winRate < 40) {
+            threshold += 0.10;
+        }
+        // Extreme market sentiment penalty (euphoria or panic increases risk)
+        if (fearGreed !== undefined && (fearGreed < 20 || fearGreed > 80)) {
+            threshold += 0.10;
+        }
+        // High funding rate penalty (overcrowded direction — costly to hold)
+        if (fundingRate !== undefined && Math.abs(fundingRate) > 0.0003) {
+            threshold += 0.05;
+        }
+
+        return Math.min(threshold, 0.75);
     }
 
     /**
@@ -168,26 +184,26 @@ export const aiLearning = AdaptiveLearning.getInstance();
 
 /**
  * Extract features for AI model
- * [RSI, MACD_Hist, Price/EMA21, Price/EMA9, Volume/AvgVolume, BandWidth, ADX]
+ * [RSI, MACD_Hist, Price/EMA21, Price/EMA9, Volume/AvgVolume, BandWidth, ADX, isLong]
  */
 export function extractFeatures(
     indicators: any,
     currentPrice: number,
-    currentVolume: number
+    currentVolume: number,
+    isLong: boolean = true
 ): number[] {
-    // Safe division helper
     const safeDiv = (n: number, d: number) => (d === 0 || !d ? 0 : n / d);
 
     const rawFeatures = [
-        indicators.rsi || 50, // Default to neutral 50
+        indicators.rsi || 50,
         indicators.macd?.histogram || 0,
         safeDiv(currentPrice, indicators.ema21),
         safeDiv(currentPrice, indicators.ema9),
         safeDiv(currentVolume, indicators.volumeAvg),
         safeDiv((indicators.bb?.upper - indicators.bb?.lower), indicators.bb?.middle),
-        indicators.adx || 25 // ADX: 25+ = trending, < 25 = ranging
+        indicators.adx || 25,
+        isLong ? 1.0 : 0.0,
     ];
 
-    // Sanitize all values
     return rawFeatures.map(v => (Number.isFinite(v) ? v : 0));
 }

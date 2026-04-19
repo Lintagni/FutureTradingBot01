@@ -2,6 +2,7 @@ import { BaseExchange } from '../exchanges/BaseExchange';
 import { IndicatorCalculator } from '../utils/indicators';
 import { config } from '../config/trading.config';
 import { logger } from '../utils/logger';
+import { RiskManager } from '../risk/RiskManager';
 
 export interface PairScore {
     symbol: string;
@@ -12,6 +13,16 @@ export interface PairScore {
     rsi: number;
     emaAligned: boolean;
     dailyVolumeUSD: number;
+    price: number;
+}
+
+/** Heuristic: estimate min order cost (USDT notional) for a pair by its price tier. */
+function estimateMinOrderCost(price: number): number {
+    if (price > 5000) return 100;   // BTC-class (~0.001 BTC min)
+    if (price > 500)  return 25;    // ETH-class (~0.01 ETH min)
+    if (price > 50)   return 10;    // SOL/AVAX range
+    if (price > 1)    return 5;     // Mid-tier
+    return 1;                        // Sub-dollar (DOGE, XRP, etc.)
 }
 
 // Stablecoins and leveraged tokens to always exclude
@@ -39,10 +50,16 @@ export class MarketScanner {
     }
 
     /**
-     * Scan market, filter candidates, score, and return top N pairs
+     * Scan market, filter candidates, score, and return top N pairs.
+     * Pass current USDT balance to apply tier-based price filter and affordable pair filter.
      */
-    async scanAndRank(): Promise<PairScore[]> {
+    async scanAndRank(balance?: number): Promise<PairScore[]> {
         const maxPairs = config.scanner.maxActivePairs;
+        const tier = RiskManager.getTier(balance ?? Infinity);
+        const minPrice = tier.minScannerPrice;
+        const maxAffordableCost = balance !== undefined ? balance * 0.6 : Infinity;
+
+        logger.info(`🔍 MarketScanner: tier=${tier.name}, minPrice=$${minPrice}, maxAffordable=$${maxAffordableCost.toFixed(2)}`);
 
         try {
             logger.info('🔍 MarketScanner: Fetching all USDT tickers...');
@@ -50,7 +67,7 @@ export class MarketScanner {
             // Step 1: Fetch all tickers
             const tickers = await this.exchange.fetchTickers();
 
-            // Step 2: Filter to USDT spot pairs with sufficient volume
+            // Step 2: Filter to USDT pairs with sufficient volume
             const candidates = Object.values(tickers)
                 .filter((ticker: any) => {
                     const symbol: string = ticker.symbol || '';
@@ -67,9 +84,9 @@ export class MarketScanner {
                     // Exclude leveraged tokens
                     if (EXCLUDED_PATTERNS.some(p => p.test(base))) return false;
 
-                    // Minimum price filter
+                    // Tier-aware minimum price filter
                     const price = ticker.last || ticker.close || 0;
-                    if (price < config.scanner.minPrice) return false;
+                    if (price < minPrice) return false;
 
                     // Minimum daily volume (in USDT)
                     const volumeUSD = (ticker.quoteVolume || 0);
@@ -105,9 +122,19 @@ export class MarketScanner {
                 await new Promise(r => setTimeout(r, 200));
             }
 
-            // Step 4: Sort by score and pick top N
+            // Step 4: Sort by score, apply affordable filter, pick top N
             scoredPairs.sort((a, b) => b.score - a.score);
-            const topPairs = scoredPairs.slice(0, maxPairs);
+
+            const affordablePairs = scoredPairs.filter(pair => {
+                const minCost = estimateMinOrderCost(pair.price);
+                if (minCost > maxAffordableCost) {
+                    logger.debug(`🔍 Affordable filter: ${pair.symbol} (price=$${pair.price}, minCost≈$${minCost}) exceeds budget $${maxAffordableCost.toFixed(2)} — excluded`);
+                    return false;
+                }
+                return true;
+            });
+
+            const topPairs = affordablePairs.slice(0, maxPairs);
 
             // Cache results
             this.cachedResults = topPairs;
@@ -228,6 +255,7 @@ export class MarketScanner {
             rsi: indicators.rsi,
             emaAligned,
             dailyVolumeUSD,
+            price: currentPrice,
         };
     }
 

@@ -98,6 +98,12 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 reason += ', room to grow';
             }
 
+            // VWAP confirmation: price above VWAP = bullish bias
+            if (indicators.vwap && currentPrice > indicators.vwap) {
+                confidence += 0.05;
+                reason += ', above VWAP';
+            }
+
         }
         // Bearish conditions
         else if (bearishCrossover) {
@@ -143,6 +149,12 @@ export class TrendFollowingStrategy extends BaseStrategy {
             if (currentPrice >= indicators.bb.upper) {
                 confidence += 0.05;
                 reason += ', overbought';
+            }
+
+            // VWAP confirmation: price below VWAP = bearish bias
+            if (indicators.vwap && currentPrice < indicators.vwap) {
+                confidence += 0.05;
+                reason += ', below VWAP';
             }
         }
         // Continuation & Extreme conditions

@@ -14,6 +14,15 @@ export interface PositionSize {
 
 export class RiskManager {
     /**
+     * Return the capital tier for a given USDT balance.
+     * Everything that depends on account size reads from this.
+     */
+    static getTier(balance: number) {
+        const tiers = config.capitalTiers;
+        return tiers.find(t => balance <= t.maxBalance) ?? tiers[tiers.length - 1];
+    }
+
+    /**
      * Calculate position size based on available capital and risk parameters
      */
     async calculatePositionSize(
@@ -22,16 +31,18 @@ export class RiskManager {
         availableCapital: number,
         exchange: any
     ): Promise<PositionSize> {
-        // Calculate position size based on percentage of capital (this is the margin used)
-        let targetCost = availableCapital * config.risk.positionSizePercentage;
+        const tier = RiskManager.getTier(availableCapital);
 
-        // For futures with leverage, the notional value = margin * leverage
-        const leverage = config.futures?.leverage || 1;
+        // Tier-based position % and leverage
+        let targetCost = availableCapital * tier.positionPct;
+        const leverage = tier.leverage;
         const notionalValue = targetCost * leverage;
 
-        // Use configured limits
-        let minSize = config.risk.minPositionSize;
+        // Dynamic min size: 5% of balance (floors at $1 for micro accounts)
+        let minSize = Math.max(1, availableCapital * 0.05);
         const maxSize = config.risk.maxPositionSize;
+
+        riskLogger.info(`📊 Tier: ${tier.name} | Balance: $${availableCapital.toFixed(2)} | Position: ${(tier.positionPct * 100).toFixed(0)}% | Leverage: ${leverage}x | MinSize: $${minSize.toFixed(2)}`);
 
         // Overlay with exchange-specific minimum if available
         if (exchange && exchange.getMinOrderValue) {

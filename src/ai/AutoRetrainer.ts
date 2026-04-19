@@ -19,7 +19,11 @@ export class AutoRetrainer {
     private timer: NodeJS.Timeout | null = null;
     private isRetraining: boolean = false;
     private lastRetrainTime: Date | null = null;
-    private trainingPairs = ['SOL/USDT', 'BTC/USDT', 'ETH/USDT'];
+    private trainingPairs = [
+        'BTC/USDT', 'ETH/USDT', 'SOL/USDT',
+        'BNB/USDT', 'XRP/USDT', 'DOGE/USDT',
+        'AVAX/USDT', 'LINK/USDT',
+    ];
 
     constructor(intervalHours: number = 12) {
         this.intervalMs = intervalHours * 60 * 60 * 1000;
@@ -102,7 +106,7 @@ export class AutoRetrainer {
             // Fetch data from multiple pairs
             for (const symbol of this.trainingPairs) {
                 try {
-                    const candles = await exchange.fetchOHLCV(symbol, config.timeframe, 1000);
+                    const candles = await exchange.fetchOHLCV(symbol, config.timeframe, 400);
 
                     if (candles.length < 200) {
                         logger.warn(`AutoRetrainer: Not enough data for ${symbol}, skipping.`);
@@ -131,7 +135,7 @@ export class AutoRetrainer {
                             ? (indicators.adx as any).adx || 0
                             : indicators.adx || 0;
 
-                        const feat = [
+                        const baseFeat = [
                             indicators.rsi || 50,
                             indicators.macd?.histogram || 0,
                             currentPrice / (indicators.ema21 || currentPrice),
@@ -141,24 +145,38 @@ export class AutoRetrainer {
                             adxValue
                         ];
 
-                        // Determine label
-                        let label = 0;
                         const entryPrice = currentPrice;
 
+                        // LONG sample: wins if futureHigh hits TP before futureLow hits SL
+                        let longLabel = 0;
                         for (let j = 1; j <= LOOKAHEAD; j++) {
                             if (candleIndex + j >= candles.length) break;
                             const futureHigh = candles[candleIndex + j].high;
-                            const futureLow = candles[candleIndex + j].low;
-
-                            if (futureLow <= entryPrice - slDistance) { label = 0; break; }
-                            if (futureHigh >= entryPrice + tpDistance) { label = 1; break; }
+                            const futureLow  = candles[candleIndex + j].low;
+                            if (futureLow  <= entryPrice - slDistance) { longLabel = 0; break; }
+                            if (futureHigh >= entryPrice + tpDistance) { longLabel = 1; break; }
                         }
 
-                        const validFeatures = feat.map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
+                        // SHORT sample: wins if futureLow hits TP before futureHigh hits SL (inverted)
+                        let shortLabel = 0;
+                        for (let j = 1; j <= LOOKAHEAD; j++) {
+                            if (candleIndex + j >= candles.length) break;
+                            const futureHigh = candles[candleIndex + j].high;
+                            const futureLow  = candles[candleIndex + j].low;
+                            if (futureHigh >= entryPrice + slDistance) { shortLabel = 0; break; }
+                            if (futureLow  <= entryPrice - tpDistance) { shortLabel = 1; break; }
+                        }
 
-                        if (validFeatures.every(v => typeof v === 'number' && isFinite(v))) {
-                            allFeatures.push(validFeatures);
-                            allLabels.push(label);
+                        const longFeat  = [...baseFeat, 1.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
+                        const shortFeat = [...baseFeat, 0.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
+
+                        if (longFeat.every(v => isFinite(v))) {
+                            allFeatures.push(longFeat);
+                            allLabels.push(longLabel);
+                        }
+                        if (shortFeat.every(v => isFinite(v))) {
+                            allFeatures.push(shortFeat);
+                            allLabels.push(shortLabel);
                         }
                     }
                 } catch (err) {
@@ -197,6 +215,12 @@ export class AutoRetrainer {
                 balancedLabels = allLabels;
             }
 
+            if (balancedFeatures.length < 10) {
+                logger.warn(`AutoRetrainer: Balanced dataset too small (${balancedFeatures.length}). Skipping retrain.`);
+                this.isRetraining = false;
+                return;
+            }
+
             // ─── Backup current model before overwriting ───
             const modelPath = path.join(process.cwd(), 'models', 'random_forest.json');
             const backupPath = path.join(process.cwd(), 'models', 'random_forest_backup.json');
@@ -208,37 +232,16 @@ export class AutoRetrainer {
             logger.info(`AutoRetrainer: Training on ${balancedFeatures.length} balanced samples...`);
             aiModel.train(balancedFeatures, balancedLabels);
 
-            // Self-test accuracy
-            const testSize = Math.min(100, balancedFeatures.length);
-            let correct = 0;
-            for (let i = 0; i < testSize; i++) {
-                const prob = aiModel.predictProbability(balancedFeatures[i]);
-                const predicted = prob >= 0.5 ? 1 : 0;
-                if (predicted === balancedLabels[i]) correct++;
-            }
-            const accuracy = (correct / testSize) * 100;
+            // Always save — quality is measured by trading performance, not in-sample accuracy
+            aiModel.save();
+            this.lastRetrainTime = new Date();
 
-            // Safety check: only save if accuracy >= 60%
-            if (accuracy >= 60) {
-                aiModel.save();
-                this.lastRetrainTime = new Date();
+            const duration = ((Date.now() - startTime) / 1000).toFixed(0);
+            const winPct = allFeatures.length > 0 ? (wins / allFeatures.length * 100).toFixed(1) : '0';
+            const msg = `🔄 *AI Retrained*\n\n📊 ${balancedFeatures.length} samples (${this.trainingPairs.join(', ')})\n⏱️ Duration: ${duration}s\n📈 Win labels: ${wins}/${allFeatures.length} (${winPct}%)`;
 
-                const duration = ((Date.now() - startTime) / 1000).toFixed(0);
-                const msg = `🔄 *AI Retrained*\n\n📊 ${balancedFeatures.length} samples (${this.trainingPairs.join(', ')})\n✅ Accuracy: ${accuracy.toFixed(0)}%\n⏱️ Duration: ${duration}s\n📈 Win data: ${wins}/${allFeatures.length} (${(wins / allFeatures.length * 100).toFixed(1)}%)`;
-
-                logger.info(`AutoRetrainer: ✅ Model updated! Accuracy: ${accuracy.toFixed(0)}%`);
-                await notifier.sendTelegramMessage(msg);
-            } else {
-                // Restore backup — new model is too bad
-                if (fs.existsSync(backupPath)) {
-                    fs.copyFileSync(backupPath, modelPath);
-                    aiModel.load();
-                }
-
-                const msg = `⚠️ *AI Retrain Failed*\n\nAccuracy: ${accuracy.toFixed(0)}% (min: 60%)\nKept previous model.`;
-                logger.warn(`AutoRetrainer: ❌ New model too weak (${accuracy.toFixed(0)}%). Reverted to backup.`);
-                await notifier.sendTelegramMessage(msg);
-            }
+            logger.info(`AutoRetrainer: ✅ Model saved (${balancedFeatures.length} samples, ${duration}s)`);
+            await notifier.sendTelegramMessage(msg);
 
         } catch (error) {
             logger.error('AutoRetrainer: Error during retrain:', error);

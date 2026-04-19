@@ -1,6 +1,6 @@
 import { BaseExchange } from '../exchanges/BaseExchange';
 import { BaseStrategy, TradeSignal } from '../strategies/BaseStrategy';
-import { riskManager } from '../risk/RiskManager';
+import { riskManager, RiskManager } from '../risk/RiskManager';
 import { tradeRepository } from '../database/TradeRepository';
 import { IndicatorCalculator } from '../utils/indicators';
 import { logger, tradeLogger } from '../utils/logger';
@@ -10,6 +10,8 @@ import { config } from '../config/trading.config';
 
 import { aiLearning, extractFeatures } from './AdaptiveLearning';
 import { MarketScanner, PairScore } from './MarketScanner';
+import { autoRetrainer } from '../ai/AutoRetrainer';
+import { getFearAndGreed } from '../utils/marketContext';
 
 /**
  * Retry wrapper for API calls with exponential backoff
@@ -65,6 +67,7 @@ interface Position {
     leverage: number;   // Futures leverage (e.g. 3 for 3x)
     openedAt: number;   // timestamp when opened
     highestPrice: number; // LONG: tracks highest price; SHORT: tracks lowest price
+    partialExitDone: boolean; // true after 50% has been closed at ATR×2 profit
 }
 
 export class TradingEngine {
@@ -83,6 +86,9 @@ export class TradingEngine {
     private scannerInterval: ReturnType<typeof setInterval> | null = null;
     private activePairs: string[] = [];
     private timeSyncInterval: ReturnType<typeof setInterval> | null = null;
+
+    // ─── Higher-Timeframe trend cache (15-min TTL per symbol) ────────────────
+    private htfCache: Map<string, { bullish1h: boolean | null; bullish4h: boolean | null; cachedAt: number }> = new Map();
 
     constructor(exchange: BaseExchange, strategy: BaseStrategy) {
         this.exchange = exchange;
@@ -114,6 +120,9 @@ export class TradingEngine {
             }
         }
 
+        // Repair any trades stored with NULL realizedPnl (legacy NaN-fee bug)
+        await tradeRepository.repairNullPnl('futures');
+
         // Initial learning from past futures trades
         await aiLearning.learn('futures');
 
@@ -125,9 +134,11 @@ export class TradingEngine {
             logger.info('🔍 Auto Pair Selection enabled — initializing MarketScanner...');
             this.marketScanner = new MarketScanner(this.exchange);
 
-            // Do initial scan
+            // Do initial scan — pass current balance for tier-aware pair selection
             try {
-                const bestPairs = await this.marketScanner.scanAndRank();
+                let scanBalance: number | undefined;
+                try { const bal = await this.exchange.fetchBalance(); scanBalance = bal.free; } catch (_) {}
+                const bestPairs = await this.marketScanner.scanAndRank(scanBalance);
                 const scannerSymbols = bestPairs.map((p: PairScore) => p.symbol);
                 const currentPositions = Array.from(this.positions.keys());
 
@@ -187,7 +198,9 @@ export class TradingEngine {
             await this.exchange.syncTime();
 
             logger.info('🔍 MarketScanner: Re-scanning market...');
-            const bestPairs = await this.marketScanner.scanAndRank();
+            let scanBalance: number | undefined;
+            try { const bal = await this.exchange.fetchBalance(); scanBalance = bal.free; } catch (_) {}
+            const bestPairs = await this.marketScanner.scanAndRank(scanBalance);
 
             if (bestPairs.length === 0) {
                 logger.warn('🔍 MarketScanner: No good pairs found, keeping current selection');
@@ -273,6 +286,7 @@ export class TradingEngine {
                         leverage,
                         openedAt: new Date(trade.createdAt).getTime(),
                         highestPrice: trade.entryPrice, // Will track from now
+                        partialExitDone: false,
                     });
                     logger.info(`   - Restored ${trade.symbol} (${isShort ? 'SHORT' : 'LONG'}, Size: ${trade.amount}, ${leverage}x)`);
                 }
@@ -312,6 +326,31 @@ export class TradingEngine {
         this.marketDataIntervals.clear();
 
         logger.info('✅ Trading engine stopped');
+    }
+
+    /**
+     * Fetch 1h and 4h EMA trends for a symbol (cached 15 min).
+     * Returns null booleans if data is unavailable — callers treat null as neutral.
+     */
+    private async fetchHTFTrend(symbol: string): Promise<{ bullish1h: boolean | null; bullish4h: boolean | null }> {
+        const cached = this.htfCache.get(symbol);
+        if (cached && Date.now() - cached.cachedAt < 15 * 60 * 1000) {
+            return { bullish1h: cached.bullish1h, bullish4h: cached.bullish4h };
+        }
+        let bullish1h: boolean | null = null;
+        let bullish4h: boolean | null = null;
+        try {
+            const candles1h = await this.exchange.fetchOHLCV(symbol, '1h', 50);
+            const ind1h = candles1h.length >= 30 ? IndicatorCalculator.calculate(candles1h) : null;
+            if (ind1h) bullish1h = ind1h.ema9 > ind1h.ema21;
+        } catch (_) {}
+        try {
+            const candles4h = await this.exchange.fetchOHLCV(symbol, '4h', 30);
+            const ind4h = candles4h.length >= 20 ? IndicatorCalculator.calculate(candles4h) : null;
+            if (ind4h) bullish4h = ind4h.ema9 > ind4h.ema21;
+        } catch (_) {}
+        this.htfCache.set(symbol, { bullish1h, bullish4h, cachedAt: Date.now() });
+        return { bullish1h, bullish4h };
     }
 
     private async processSymbol(symbol: string): Promise<void> {
@@ -391,6 +430,15 @@ export class TradingEngine {
                         timestamp: Date.now(),
                     });
 
+                    // ─── Fetch Higher-Timeframe trend (cached 15 min) ───────────
+                    let htfBullish1h: boolean | null = null;
+                    let htfBullish4h: boolean | null = null;
+                    try {
+                        const htf = await this.fetchHTFTrend(symbol);
+                        htfBullish1h = htf.bullish1h;
+                        htfBullish4h = htf.bullish4h;
+                    } catch (_) {}
+
                     // Check if we have an open position
                     const position = this.positions.get(symbol);
 
@@ -399,7 +447,7 @@ export class TradingEngine {
                         await this.managePosition(symbol, position, signal);
                     } else {
                         // Look for entry opportunity
-                        await this.lookForEntry(symbol, signal);
+                        await this.lookForEntry(symbol, signal, htfBullish1h, htfBullish4h);
                     }
                     completed = true;
                 })(),
@@ -430,11 +478,20 @@ export class TradingEngine {
     }
 
     /**
-     * Look for entry opportunity — supports both LONG and SHORT for futures
+     * Look for entry opportunity — supports both LONG and SHORT for futures.
+     * htfBullish1h / htfBullish4h: higher-timeframe EMA trend (null = unknown).
      */
-    private async lookForEntry(symbol: string, signal: TradeSignal): Promise<void> {
+    private async lookForEntry(
+        symbol: string,
+        signal: TradeSignal,
+        htfBullish1h: boolean | null = null,
+        htfBullish4h: boolean | null = null,
+    ): Promise<void> {
         // Only act on directional signals, not hold
         if (signal.signal === 'hold') return;
+
+        // In-memory fast check — prevents wasted API calls when max positions already reached
+        if (this.positions.size >= config.risk.maxOpenPositions) return;
 
         const isLong = signal.direction === 'long';
         const isShort = signal.direction === 'short';
@@ -445,7 +502,7 @@ export class TradingEngine {
 
         // LEARNING UPDATE: Check AI Adjustment
         await aiLearning.learn('futures');
-        const threshold = aiLearning.getConfidenceThreshold('futures');
+        const baseThreshold = aiLearning.getConfidenceThreshold('futures');
         const riskMult = aiLearning.getRiskMultiplier('futures');
 
         // Check if indicators are valid
@@ -458,14 +515,15 @@ export class TradingEngine {
         const features = extractFeatures(
             signal.indicators,
             signal.price,
-            (signal.indicators as any).volumeAvg
+            (signal.indicators as any).volumeAvg,
+            isLong
         );
 
         const aiScore = aiLearning.getPrediction(features);
-        logger.info(`🤖 AI Prediction (${dirLabel}): ${(aiScore * 100).toFixed(1)}% chance of profit (Threshold: ${(threshold * 100).toFixed(0)}%)`);
+        logger.info(`🤖 AI Prediction (${dirLabel}): ${(aiScore * 100).toFixed(1)}% chance of profit (Threshold: ${(baseThreshold * 100).toFixed(0)}%)`);
 
-        if (aiScore < threshold) {
-            logger.warn(`❌ AI REJECTED ${dirLabel} trade for ${symbol}: Score ${(aiScore * 100).toFixed(1)}% < Threshold ${(threshold * 100).toFixed(0)}%`);
+        if (aiScore < baseThreshold) {
+            logger.warn(`❌ AI REJECTED ${dirLabel} trade for ${symbol}: Score ${(aiScore * 100).toFixed(1)}% < Threshold ${(baseThreshold * 100).toFixed(0)}%`);
             return;
         }
 
@@ -475,9 +533,99 @@ export class TradingEngine {
             logger.info(`🚀 AI is highly confident (${(aiScore * 100).toFixed(1)}%) — boosting position size to 120%`);
         }
 
-        logger.info(`🔍 Signal: ${dirLabel}, Conf: ${(signal.confidence * 100).toFixed(1)}%, Threshold: ${(threshold * 100).toFixed(0)}%`);
+        // ─── 1. Funding Rate Filter ────────────────────────────────────────────
+        // High positive funding = longs are overcrowded (paying shorts heavily).
+        // Threshold 0.05% is ~5× the normal Bybit rate of ~0.01%.
+        const bybitEx = this.exchange as any;
+        let fundingRateValue: number | undefined;
+        if (bybitEx.getFundingRate) {
+            try {
+                const funding: number | null = await bybitEx.getFundingRate(symbol);
+                if (funding !== null) {
+                    fundingRateValue = funding;
+                    if (isLong && funding > 0.0005) {
+                        logger.warn(`❌ Funding filter: ${symbol} funding ${(funding * 100).toFixed(4)}% > 0.05% — skipping LONG (longs overcrowded)`);
+                        return;
+                    }
+                    if (isShort && funding < -0.0005) {
+                        logger.warn(`❌ Funding filter: ${symbol} funding ${(funding * 100).toFixed(4)}% < -0.05% — skipping SHORT (shorts overcrowded)`);
+                        return;
+                    }
+                    logger.info(`💰 Funding: ${symbol} ${(funding * 100).toFixed(4)}% — OK for ${dirLabel}`);
+                }
+            } catch (_) {}
+        }
 
-        if (signal.confidence >= threshold) {
+        // ─── 2. Fear & Greed Index ─────────────────────────────────────────────
+        // Fetched early so it informs the regime threshold for the HTF check.
+        let fngValue: number | undefined;
+        let fngSizeMultiplier = 1.0;
+        try {
+            const fng = await getFearAndGreed();
+            if (fng) {
+                fngValue = fng.value;
+                if (isLong && fng.value >= 90) {
+                    logger.warn(`❌ Fear & Greed: ${fng.value} (${fng.label}) — skipping LONG (euphoric market)`);
+                    return;
+                }
+                if (isLong && fng.value >= 80) {
+                    fngSizeMultiplier = 0.7;
+                    logger.info(`⚠️ Fear & Greed: ${fng.value} (${fng.label}) — LONG size reduced to 70%`);
+                } else if (isShort && fng.value <= 20) {
+                    fngSizeMultiplier = 0.7;
+                    logger.info(`⚠️ Fear & Greed: ${fng.value} (${fng.label}) — SHORT size reduced to 70%`);
+                } else {
+                    logger.info(`😐 Fear & Greed: ${fng.value} (${fng.label}) — neutral`);
+                }
+            }
+        } catch (_) {}
+
+        // Regime-aware threshold: base + win-rate + F&G extreme + funding penalty
+        const regimeThreshold = aiLearning.getConfidenceThreshold('futures', fundingRateValue, fngValue);
+        if (regimeThreshold > baseThreshold) {
+            logger.info(`🌡️ Regime threshold raised: ${(baseThreshold * 100).toFixed(0)}% → ${(regimeThreshold * 100).toFixed(0)}% (funding/sentiment adjustment)`);
+        }
+
+        // ─── 3. Higher-Timeframe Confluence ───────────────────────────────────
+        // Against-trend: confidence penalty. With-trend: small boost.
+        let htfAdj = 0;
+        if (htfBullish1h !== null) {
+            const aligned1h = (isLong && htfBullish1h) || (isShort && !htfBullish1h);
+            htfAdj += aligned1h ? 0.05 : -0.15;
+            logger.info(`${aligned1h ? '✅' : '⚠️'} HTF 1h: ${htfBullish1h ? 'BULL' : 'BEAR'} ${aligned1h ? 'aligns' : 'conflicts'} with ${dirLabel} (${aligned1h ? '+5%' : '-15%'})`);
+        }
+        if (htfBullish4h !== null) {
+            const aligned4h = (isLong && htfBullish4h) || (isShort && !htfBullish4h);
+            htfAdj += aligned4h ? 0.03 : -0.10;
+            logger.info(`${aligned4h ? '✅' : '⚠️'} HTF 4h: ${htfBullish4h ? 'BULL' : 'BEAR'} ${aligned4h ? 'aligns' : 'conflicts'} with ${dirLabel} (${aligned4h ? '+3%' : '-10%'})`);
+        }
+        const adjustedConfidence = Math.max(0, Math.min(1, signal.confidence + htfAdj));
+        if (adjustedConfidence < regimeThreshold) {
+            logger.warn(`❌ HTF confluence: adjusted confidence ${(adjustedConfidence * 100).toFixed(1)}% < regime threshold ${(regimeThreshold * 100).toFixed(0)}% — skipping ${dirLabel} for ${symbol}`);
+            return;
+        }
+
+        // ─── 4. Open Interest Confirmation ────────────────────────────────────
+        // Rising OI + long or falling OI + short = institutional confirmation.
+        let oiSizeMultiplier = 1.0;
+        if (bybitEx.getOpenInterestChange) {
+            try {
+                const oiChange: string = await bybitEx.getOpenInterestChange(symbol);
+                const oiAligned = (isLong && oiChange === 'rising') || (isShort && oiChange === 'falling');
+                const oiAgainst = (isLong && oiChange === 'falling') || (isShort && oiChange === 'rising');
+                if (oiAligned) {
+                    oiSizeMultiplier = 1.1;
+                    logger.info(`✅ OI ${oiChange} confirms ${dirLabel} for ${symbol} — size +10%`);
+                } else if (oiAgainst) {
+                    oiSizeMultiplier = 0.85;
+                    logger.info(`⚠️ OI ${oiChange} conflicts with ${dirLabel} for ${symbol} — size -15%`);
+                }
+            } catch (_) {}
+        }
+
+        logger.info(`🔍 Signal: ${dirLabel}, Conf: ${(signal.confidence * 100).toFixed(1)}% → HTF-adj: ${(adjustedConfidence * 100).toFixed(1)}%, Regime Threshold: ${(regimeThreshold * 100).toFixed(0)}%`);
+
+        if (adjustedConfidence >= regimeThreshold) {
             // Check risk management
             const canOpen = await riskManager.canOpenPosition(symbol);
             logger.info(`🔍 Can Open Position? ${canOpen}`);
@@ -489,7 +637,10 @@ export class TradingEngine {
                 'Fetch balance'
             );
 
-            // Calculate position size (margin-based, leverage applied inside)
+            // Determine capital tier for this account size
+            const tier = RiskManager.getTier(balance.free);
+
+            // Calculate position size (margin-based, tier-based leverage applied inside)
             let positionSize = await riskManager.calculatePositionSize(
                 symbol,
                 signal.price,
@@ -497,17 +648,17 @@ export class TradingEngine {
                 this.exchange
             );
 
-            // Apply learning adjustment and AI size multiplier
-            let adjustedAmount = positionSize.amount * riskMult * aiSizeMultiplier;
+            // Apply learning adjustment, AI size multiplier, OI and F&G multipliers
+            let adjustedAmount = positionSize.amount * riskMult * aiSizeMultiplier * oiSizeMultiplier * fngSizeMultiplier;
             const adjustedCost = adjustedAmount * signal.price;
-            const minSize = config.risk.minPositionSize;
+            const minSize = Math.max(1, balance.free * 0.05);
 
             if (adjustedCost < minSize) {
                 if (balance.free < minSize) {
-                    logger.warn(`Insufficient balance ($${balance.free.toFixed(2)}) for minimum order size ($${minSize}). Skipping trade.`);
+                    logger.warn(`Insufficient balance ($${balance.free.toFixed(2)}) for minimum order size ($${minSize.toFixed(2)}). Skipping trade.`);
                     return;
                 }
-                adjustedAmount = (minSize * (config.futures.leverage)) / signal.price;
+                adjustedAmount = (minSize * tier.leverage) / signal.price;
             }
 
             positionSize.amount = adjustedAmount;
@@ -546,7 +697,7 @@ export class TradingEngine {
                     return;
                 }
 
-                const leverage = config.futures.leverage;
+                const leverage = tier.leverage; // Tier-based leverage
                 const marginMode = config.futures.marginMode;
 
                 // Set margin mode and leverage BEFORE placing order
@@ -593,6 +744,12 @@ export class TradingEngine {
                     leverage,
                 });
 
+                // Re-check in-memory map right before committing — DB check above may be stale
+                if (this.positions.size >= config.risk.maxOpenPositions) {
+                    logger.warn(`⚠️ Race guard: max positions reached — cancelling ${dirLabel} for ${symbol}`);
+                    return;
+                }
+
                 // Add to positions map
                 this.positions.set(symbol, {
                     tradeId: trade.id,
@@ -606,6 +763,7 @@ export class TradingEngine {
                     leverage,
                     openedAt: Date.now(),
                     highestPrice: order.price, // LONG: tracks highest; SHORT: tracks lowest
+                    partialExitDone: false,
                 });
 
                 // Reset loss cooldown on successful entry
@@ -654,6 +812,21 @@ export class TradingEngine {
         const profitPct = isShort
             ? ((position.entryPrice - currentPrice) / position.entryPrice) * 100
             : ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+
+        // ─── 1.5. Partial Take-Profit: close 50% at ATR×SL multiplier distance ───
+        // Halfway to full TP (ATR×2 of ATR×4 full TP) — locks partial profit and moves SL to breakeven.
+        if (!position.partialExitDone && (signal.indicators as any)?.atr) {
+            const atr = (signal.indicators as any).atr as number;
+            const partialTriggerDist = atr * (config.strategy.atrMultiplierSL || 2.0);
+            const profitDist = isShort
+                ? position.entryPrice - currentPrice
+                : currentPrice - position.entryPrice;
+
+            if (profitDist >= partialTriggerDist) {
+                await this.closePartialPosition(symbol, position, currentPrice);
+                return; // SL + partialExitDone already updated inside closePartialPosition
+            }
+        }
 
         // ─── 2. Breakeven stop: move SL to entry when profit >= breakEvenActivation% ───
         if (profitPct >= config.strategy.breakEvenActivation) {
@@ -760,6 +933,53 @@ export class TradingEngine {
     }
 
     /**
+     * Close 50% of a position (partial take-profit), move SL to breakeven.
+     * Updates position in-memory; the DB trade stays open until full close.
+     */
+    private async closePartialPosition(symbol: string, position: Position, currentPrice: number): Promise<void> {
+        const isShort = position.side === 'sell';
+        const dirLabel = isShort ? 'SHORT' : 'LONG';
+        const halfAmount = position.amount / 2;
+
+        try {
+            let order;
+            if (!isShort) {
+                order = await this.exchange.createMarketSellOrder(symbol, halfAmount);
+            } else {
+                order = await this.exchange.createMarketBuyOrder(symbol, halfAmount);
+            }
+
+            const closePrice = (order.price && Number.isFinite(order.price)) ? order.price : currentPrice;
+            const rawFee = order.fee;
+            const feeAmount: number = rawFee == null ? 0
+                : typeof rawFee === 'object' ? (Number((rawFee as any).cost) || 0)
+                : Number(rawFee) || 0;
+
+            const { pnl } = riskManager.calculatePnL(
+                position.entryPrice, closePrice, halfAmount, feeAmount, position.side, position.leverage
+            );
+
+            // Update in-memory position: halve amount, mark done, tighten SL to breakeven
+            position.amount = halfAmount;
+            position.partialExitDone = true;
+            if (!isShort) {
+                position.stopLoss = Math.max(position.stopLoss, position.entryPrice * 1.001);
+            } else {
+                position.stopLoss = Math.min(position.stopLoss, position.entryPrice * 0.999);
+            }
+
+            const pnlStr = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
+            logger.info(`💰 [${symbol}][${dirLabel}] Partial TP: Closed 50% @ $${closePrice.toFixed(4)} | P&L: ${pnlStr} | SL → breakeven`);
+            await notifier.sendMessage(`💰 *Partial TP* — ${symbol} ${dirLabel}\n\n✅ Closed 50% @ $${closePrice.toFixed(4)}\nPartial P&L: ${pnlStr}\n📌 SL moved to breakeven\n⏳ Remaining 50% running to full TP`);
+            webServer.pushLog(`💰 Partial TP: ${symbol} ${dirLabel} — ${pnlStr}`, 'info');
+            this.broadcastPositions();
+        } catch (error) {
+            logger.error(`Failed partial close for ${symbol}:`, error);
+            // Do not set partialExitDone — will retry on next cycle
+        }
+    }
+
+    /**
      * Close a futures position (LONG or SHORT)
      */
     private async closePosition(
@@ -841,19 +1061,32 @@ export class TradingEngine {
                 }
             }
 
+            // Normalize fee: paper mode returns { cost, currency } object; live returns number
+            const rawFee = order.fee;
+            const feeAmount: number = rawFee == null ? 0
+                : typeof rawFee === 'object' ? (Number((rawFee as any).cost) || 0)
+                : Number(rawFee) || 0;
+
+            // Ensure we have a valid fill price (fall back to the intended exitPrice)
+            const closePrice = (order.price && Number.isFinite(order.price)) ? order.price : exitPrice;
+
             // Calculate P&L — leverage and direction-aware
-            const { pnl, pnlPercentage } = riskManager.calculatePnL(
+            const { pnl: rawPnl, pnlPercentage: rawPnlPct } = riskManager.calculatePnL(
                 position.entryPrice,
-                order.price,
+                closePrice,
                 order.amount,
-                order.fee,
+                feeAmount,
                 position.side,
                 position.leverage
             );
 
+            // Guard: never persist NaN/Infinity to DB
+            const pnl = Number.isFinite(rawPnl) ? rawPnl : 0;
+            const pnlPercentage = Number.isFinite(rawPnlPct) ? rawPnlPct : 0;
+
             // Update trade in database
             await tradeRepository.updateTrade(position.tradeId, {
-                exitPrice: order.price,
+                exitPrice: closePrice,
                 exitTime: new Date(),
                 realizedPnl: pnl,
                 pnlPercentage,
@@ -883,7 +1116,7 @@ export class TradingEngine {
                 symbol,
                 side: position.side,
                 entryPrice: position.entryPrice,
-                exitPrice: order.price,
+                exitPrice: closePrice,
                 pnl,
                 pnlPercentage,
             });
@@ -918,6 +1151,17 @@ export class TradingEngine {
         recentWinRate: number;
         lifetimeWinRate: number;
         walletBalances: Map<string, number>;
+        readiness: {
+            score: number;
+            thresholds: {
+                trades:       { value: number;  target: number; pass: boolean };
+                winRate:      { value: number;  target: number; pass: boolean };
+                profitable:   { value: number;  target: number; pass: boolean };
+                modelTrained: { value: number;  target: number; pass: boolean };
+                modelFresh:   { value: number;  target: number; pass: boolean };
+                dailyHealth:  { value: number;  target: number; pass: boolean };
+            };
+        };
     }> {
         const dailyPnL = await tradeRepository.getDailyPnL(new Date(), 'futures');
         const totalPnL = await tradeRepository.getTotalPnL('futures');
@@ -954,36 +1198,59 @@ export class TradingEngine {
             });
         }
 
-        // All pairs that need balance fetching: active pairs + pairs with open positions
-        const positionPairs = Array.from(this.positions.keys());
-        const allPairsForBalance = [...new Set([...positionPairs, ...monitoredPairs])];
-
         const walletBalances = new Map<string, number>();
 
-        // Fetch balances for all relevant base currencies
-        for (const pair of allPairsForBalance) {
+        if (config.mode === 'paper') {
+            // Paper mode: only show USDT — all other coin balances are the same simulated value and are misleading
+            const paperBalance = parseFloat(process.env.PAPER_INITIAL_BALANCE || '10000');
+            walletBalances.set('USDT', paperBalance);
+        } else {
+            // Live mode: fetch real balances for all relevant currencies
+            const positionPairs = Array.from(this.positions.keys());
+            const allPairsForBalance = [...new Set([...positionPairs, ...monitoredPairs])];
+
+            for (const pair of allPairsForBalance) {
+                try {
+                    const baseCurrency = pair.split('/')[0];
+                    if (walletBalances.has(baseCurrency)) continue;
+                    const balance = await this.exchange.fetchBalance(baseCurrency);
+                    walletBalances.set(baseCurrency, balance.free);
+                } catch (e) {
+                    logger.warn(`Failed to fetch balance for ${pair}: ${e}`);
+                }
+            }
+
+            // Also get quote currency balance (USDT)
             try {
-                const baseCurrency = pair.split('/')[0];
-                if (walletBalances.has(baseCurrency)) continue; // Skip duplicates
-                const balance = await this.exchange.fetchBalance(baseCurrency);
-                walletBalances.set(baseCurrency, balance.free);
+                const allPairsForBalance2 = [...new Set([...Array.from(this.positions.keys()), ...monitoredPairs])];
+                const rawQuote = allPairsForBalance2[0]?.split('/')[1] || 'USDT';
+                const quoteCurrency = rawQuote.split(':')[0];
+                const balance = await this.exchange.fetchBalance(quoteCurrency);
+                walletBalances.set(quoteCurrency, balance.free);
             } catch (e) {
-                logger.warn(`Failed to fetch balance for ${pair}: ${e}`);
+                logger.warn(`Failed to fetch quote balance: ${e}`);
             }
         }
 
-        // Also get quote currency balance (typically USDT)
-        // "XRP/USDT:USDT".split('/')[1] → "USDT:USDT" — strip settle suffix
-        try {
-            const rawQuote = allPairsForBalance[0]?.split('/')[1] || 'USDT';
-            const quoteCurrency = rawQuote.split(':')[0]; // "USDT:USDT" → "USDT"
-            const balance = await this.exchange.fetchBalance(quoteCurrency);
-            walletBalances.set(quoteCurrency, balance.free);
-        } catch (e) {
-            logger.warn(`Failed to fetch quote balance: ${e}`);
-        }
-
         const unrealizedPnL = positionDetails.reduce((sum, p) => sum + (p.unrealizedPnl || 0), 0);
+
+        // ─── Live Readiness ────────────────────────────────────────────────────
+        const closedTradeCount = await tradeRepository.getClosedTradeCount('futures');
+        const retrainerStatus = autoRetrainer.getStatus();
+        const modelAge = retrainerStatus.lastRetrain
+            ? Math.round((Date.now() - new Date(retrainerStatus.lastRetrain).getTime()) / 3600000)
+            : 9999;
+
+        const readinessThresholds = {
+            trades:       { value: closedTradeCount,  target: 30, pass: closedTradeCount >= 30 },
+            winRate:      { value: lifetimeWinRate,   target: 55, pass: lifetimeWinRate >= 55 },
+            profitable:   { value: totalPnL,          target: 0,  pass: totalPnL > 0 },
+            modelTrained: { value: retrainerStatus.lastRetrain ? 1 : 0, target: 1, pass: !!retrainerStatus.lastRetrain },
+            modelFresh:   { value: modelAge,          target: 48, pass: modelAge < 48 },
+            dailyHealth:  { value: dailyPnL,          target: 0,  pass: dailyPnL >= 0 },
+        };
+        const passCount = Object.values(readinessThresholds).filter(t => t.pass).length;
+        const readinessScore = Math.round((passCount / Object.keys(readinessThresholds).length) * 100);
 
         return {
             isRunning: this.isRunning,
@@ -996,6 +1263,7 @@ export class TradingEngine {
             recentWinRate,
             lifetimeWinRate,
             walletBalances,
+            readiness: { score: readinessScore, thresholds: readinessThresholds },
         };
     }
 

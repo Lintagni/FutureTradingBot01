@@ -143,10 +143,25 @@ export class TradeRepository {
                 where: { status: 'closed', marketType },
                 _sum: { realizedPnl: true },
             });
-            return result._sum.realizedPnl || 0;
+            const raw = result._sum.realizedPnl;
+            return (raw != null && Number.isFinite(raw)) ? raw : 0;
         } catch (error) {
             logger.error('Error calculating total P&L:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Get count of closed trades
+     */
+    async getClosedTradeCount(marketType: string = 'futures'): Promise<number> {
+        try {
+            return await prisma.trade.count({
+                where: { status: 'closed', marketType },
+            });
+        } catch (error) {
+            logger.error('Error counting closed trades:', error);
+            return 0;
         }
     }
 
@@ -155,12 +170,9 @@ export class TradeRepository {
      */
     async getLifetimeWinRate(marketType: string = 'spot') {
         try {
+            // Count all closed trades (including those with NULL realizedPnl — treated as losses)
             const totalClosed = await prisma.trade.count({
-                where: {
-                    status: 'closed',
-                    marketType,
-                    realizedPnl: { not: 0 } // Exclude breakeven
-                }
+                where: { status: 'closed', marketType }
             });
 
             if (totalClosed === 0) return 0;
@@ -176,6 +188,58 @@ export class TradeRepository {
             return (wins / totalClosed) * 100;
         } catch (error) {
             logger.error('Error calculating lifetime win rate:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Repair closed trades whose realizedPnl was stored as NULL (e.g. due to a NaN bug).
+     * Recalculates P&L from stored entryPrice, exitPrice, side, amount, leverage, fee.
+     */
+    async repairNullPnl(marketType: string = 'futures'): Promise<number> {
+        try {
+            const broken = await prisma.trade.findMany({
+                where: {
+                    status: 'closed',
+                    marketType,
+                    exitPrice: { not: null },
+                    realizedPnl: null,
+                },
+            });
+
+            if (broken.length === 0) return 0;
+
+            logger.info(`🔧 Repairing ${broken.length} closed trades with NULL realizedPnl...`);
+
+            let fixed = 0;
+            for (const t of broken) {
+                try {
+                    const entryPrice = t.entryPrice ?? t.price ?? 0;
+                    const exitPrice  = t.exitPrice as number;
+                    const amount     = t.amount ?? 0;
+                    const leverage   = (t as any).leverage ?? 1;
+                    const fee        = t.fee ?? 0;
+                    const isShort    = t.side === 'sell';
+
+                    const priceDiff  = isShort ? entryPrice - exitPrice : exitPrice - entryPrice;
+                    const pnl        = priceDiff * amount * leverage - fee;
+                    const marginUsed = (entryPrice * amount) / leverage;
+                    const pnlPct     = marginUsed > 0 ? (pnl / marginUsed) * 100 : 0;
+
+                    if (!Number.isFinite(pnl)) continue;
+
+                    await prisma.trade.update({
+                        where: { id: t.id },
+                        data: { realizedPnl: pnl, pnlPercentage: pnlPct },
+                    });
+                    fixed++;
+                } catch (_) { /* skip individual failures */ }
+            }
+
+            logger.info(`🔧 Repaired ${fixed}/${broken.length} trades.`);
+            return fixed;
+        } catch (error) {
+            logger.error('Error repairing NULL P&L trades:', error);
             return 0;
         }
     }

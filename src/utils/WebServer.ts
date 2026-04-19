@@ -58,6 +58,7 @@ export class WebServer {
             mode: config.mode,
             leverage: config.futures.leverage,
             marginMode: config.futures.marginMode,
+            readiness: status.readiness,
         };
     }
 
@@ -89,6 +90,46 @@ export class WebServer {
                 res.json(trades);
             } catch (e: any) {
                 res.status(500).json({ error: e.message });
+            }
+        });
+
+        // ── Config (read-only) ───────────────────────────────────────────────
+        this.app.get('/api/config', (_req, res) => {
+            res.json({
+                mode:                   config.mode,
+                leverage:               config.futures.leverage,
+                marginMode:             config.futures.marginMode,
+                maxOpenPositions:       config.risk.maxOpenPositions,
+                stopLossPercentage:     config.risk.stopLossPercentage,
+                takeProfitPercentage:   config.risk.takeProfitPercentage,
+                maxDailyLoss:           config.risk.maxDailyLoss,
+                minPositionSize:        config.risk.minPositionSize,
+                maxPositionSize:        config.risk.maxPositionSize,
+                positionSizePercent:    config.risk.positionSizePercentage * 100,
+                autoPairSelection:      config.autoPairSelection,
+                maxActivePairs:         config.scanner.maxActivePairs,
+                scanIntervalMinutes:    config.scanner.scanIntervalMinutes,
+                minDailyVolumeUSD:      config.scanner.minDailyVolumeUSD,
+                mlConfidenceThreshold:  config.strategy.mlConfidenceThreshold,
+                trailingActivation:     config.strategy.trailingStopActivation,
+                trailingDistance:       config.strategy.trailingStopDistance,
+                breakEvenActivation:    config.strategy.breakEvenActivation,
+                stalePositionHours:     config.strategy.stalePositionHours,
+                timeframe:              config.timeframe,
+                tradingPairs:           config.tradingPairs,
+            });
+        });
+
+        // ── Settings (writable) ──────────────────────────────────────────────
+        this.app.post('/api/settings/min-size', async (req, res) => {
+            if (!this.engine) { res.json({ ok: false, message: 'Engine not ready' }); return; }
+            const size = parseFloat(req.body.value);
+            if (isNaN(size) || size <= 0) { res.json({ ok: false, message: 'Invalid value' }); return; }
+            try {
+                const msg = await this.engine.updateMinPositionSize(size);
+                res.json({ ok: true, message: msg });
+            } catch (e: any) {
+                res.status(500).json({ ok: false, message: e.message });
             }
         });
 

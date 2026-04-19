@@ -55,15 +55,19 @@ class Notifier {
                     { text: '📊 Status', callback_data: 'status' },
                 ],
                 [
-                    { text: '🔍 Scanner', callback_data: 'scanner' },
-                    { text: '🔄 Rescan', callback_data: 'rescan' },
-                ],
-                [
                     { text: '🎯 Pairs', callback_data: 'pairs' },
                     { text: '🤖 Retrain AI', callback_data: 'retrain' },
                 ],
                 [
-                    { text: '❓ Help', callback_data: 'help' },
+                    { text: '📋 Readiness', callback_data: 'readiness' },
+                    { text: '⚙️ Min Size', callback_data: 'min_size' },
+                ],
+                [
+                    { text: '🔍 Scanner', callback_data: 'scanner' },
+                    { text: '🔄 Rescan', callback_data: 'rescan' },
+                ],
+                [
+                    { text: '🌐 Live Dashboard', url: 'https://futures-trading-bot-wmg.fly.dev/' },
                 ],
             ],
         };
@@ -74,8 +78,8 @@ class Notifier {
         return {
             keyboard: [
                 [{ text: '📊 Status' }, { text: '▶️ Start Bot' }, { text: '⏹ Stop Bot' }],
-                [{ text: '🔍 Scanner' }, { text: '🔄 Rescan' }, { text: '🎯 Pairs' }],
-                [{ text: '🤖 Retrain AI' }, { text: '❓ Help' }],
+                [{ text: '🎯 Pairs' }, { text: '📋 Readiness' }, { text: '🤖 Retrain AI' }],
+                [{ text: '🔍 Scanner' }, { text: '🔄 Rescan' }, { text: '⚙️ Min Size' }],
             ],
             resize_keyboard: true,
             persistent: true,
@@ -100,6 +104,33 @@ class Notifier {
     }): void {
         if (!this.telegramBot || !this.chatId) return;
 
+        // ─── Helper: build readiness message ───
+        const buildReadiness = async (): Promise<string> => {
+            const s = await callbacks.onStatus();
+            if (config.mode !== 'paper') {
+                return '📋 *Live Readiness* — Bot is already in LIVE mode.';
+            }
+            if (!s.readiness) {
+                return '📋 *Live Readiness* — data not available yet.';
+            }
+            const r = s.readiness;
+            const t = r.thresholds;
+            const scoreBar = r.score >= 100 ? '✅ Ready to go live!' : `${r.score}% ready`;
+            const modelFreshStr = t.modelFresh.value >= 9999 ? 'Never trained' : `${t.modelFresh.value}h ago`;
+            return `
+📋 *Live Readiness* — ${scoreBar}
+
+${t.trades.pass ? '✅' : '❌'} Closed trades: ${t.trades.value}/${t.trades.target}
+${t.winRate.pass ? '✅' : '❌'} Win rate: ${(t.winRate.value || 0).toFixed(1)}% (need ≥${t.winRate.target}%)
+${t.profitable.pass ? '✅' : '❌'} Total P&L: ${t.profitable.value >= 0 ? '+' : ''}$${(t.profitable.value || 0).toFixed(2)}
+${t.modelTrained.pass ? '✅' : '❌'} AI model trained: ${t.modelTrained.pass ? 'Yes' : 'Not yet'}
+${t.modelFresh.pass ? '✅' : '❌'} Model freshness: ${modelFreshStr}
+${t.dailyHealth.pass ? '✅' : '❌'} Today P&L healthy: ${t.dailyHealth.pass ? 'Yes' : 'No'}
+
+_When 100%: set_ \`TRADING\\_MODE=live\` _\\+ real Bybit API keys_
+            `.trim();
+        };
+
         // ─── Helper: build and send status message ───
         const sendStatus = async () => {
             const s = await callbacks.onStatus();
@@ -123,15 +154,39 @@ class Notifier {
 
             let balanceLines = '';
             if (s.walletBalances) {
-                for (const [coin, amount] of s.walletBalances.entries()) {
-                    if (amount > 0.0001 || coin === 'USDT') {
-                        balanceLines += `\n  ${coin}: ${amount.toFixed(4)}`;
+                // Handle both Map and plain object (paper mode serializes differently)
+                const entries: [string, number][] = s.walletBalances instanceof Map
+                    ? [...s.walletBalances.entries()]
+                    : Object.entries(s.walletBalances) as [string, number][];
+                for (const [coin, amount] of entries) {
+                    if ((amount as number) > 0.0001 || coin === 'USDT') {
+                        balanceLines += `\n  ${coin}: ${(amount as number).toFixed(4)}`;
                     }
                 }
             }
 
             const pairsList = s.monitoredPairs.map((p: string) => `  • ${p}`).join('\n');
             const autoMode = config.autoPairSelection ? '🤖 Auto' : '📌 Manual';
+
+            // ─── Live Readiness block (paper mode only) ───
+            let readinessBlock = '';
+            if (config.mode === 'paper' && s.readiness) {
+                const r = s.readiness;
+                const t = r.thresholds;
+                const scoreBar = r.score >= 100 ? '✅ Ready!' : `${r.score}% Ready`;
+                const modelFreshStr = t.modelFresh.value >= 9999 ? 'Never' : `${t.modelFresh.value}h ago`;
+                readinessBlock = `
+
+🎯 *Live Readiness* — ${scoreBar}
+${t.trades.pass ? '✅' : '❌'} Closed trades: ${t.trades.value}/${t.trades.target}
+${t.winRate.pass ? '✅' : '❌'} Win rate: ${(t.winRate.value || 0).toFixed(1)}% (need ≥${t.winRate.target}%)
+${t.profitable.pass ? '✅' : '❌'} Total P&L: ${t.profitable.value >= 0 ? '+' : ''}$${(t.profitable.value || 0).toFixed(2)}
+${t.modelTrained.pass ? '✅' : '❌'} AI model trained: ${t.modelTrained.pass ? 'Yes' : 'Not yet'}
+${t.modelFresh.pass ? '✅' : '❌'} Model freshness: ${modelFreshStr} (need <${t.modelFresh.target}h)
+${t.dailyHealth.pass ? '✅' : '❌'} Today's P&L healthy: ${t.dailyHealth.pass ? 'Yes' : 'No'}
+
+_When 100%: set_ \`TRADING\\_MODE=live\` _\\+ real Bybit API keys_`;
+            }
 
             return `
 📊 *Bot Status*
@@ -151,7 +206,7 @@ Win Rate: ${(s.recentWinRate ?? 0).toFixed(1)}% (Recent) | ${(s.lifetimeWinRate 
 🔍 *Monitoring (${s.monitoredPairs.length}):*
 ${pairsList || '  (none)'}
 
-👛 *Wallet:*${balanceLines || '\n  (No balances)'}
+👛 *Wallet:*${balanceLines || '\n  (No balances)'}${readinessBlock}
             `.trim();
         };
 
@@ -165,8 +220,12 @@ ${pairsList || '  (none)'}
         // ─── Persistent keyboard button texts ───
         this.telegramBot.onText(/^📊 Status$/, async (msg) => {
             if (msg.chat.id.toString() !== this.chatId) return;
-            const message = await sendStatus();
-            await this.sendTelegramMessage(message);
+            try {
+                const message = await sendStatus();
+                await this.sendTelegramMessage(message);
+            } catch (e: any) {
+                await this.sendTelegramMessage(`⚠️ Status error: ${e.message}`);
+            }
         });
         this.telegramBot.onText(/^▶️ Start Bot$/, async (msg) => {
             if (msg.chat.id.toString() !== this.chatId) return;
@@ -208,6 +267,21 @@ ${pairsList || '  (none)'}
             const result = await callbacks.onForceRetrain();
             await this.sendTelegramMessage(result);
         });
+        this.telegramBot.onText(/^📋 Readiness$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            try {
+                await this.sendTelegramMessage(await buildReadiness());
+            } catch (e: any) {
+                await this.sendTelegramMessage(`⚠️ Readiness error: ${e.message}`);
+            }
+        });
+        this.telegramBot.onText(/^⚙️ Min Size$/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            const minSize = callbacks.onGetMinSize();
+            await this.sendTelegramMessage(
+                `⚙️ *Min Position Size*\n\nCurrent: *$${minSize.toFixed(2)}*\n\nTo change, send:\n/min\\_size <value>\n\nExample: /min\\_size 20`
+            );
+        });
         this.telegramBot.onText(/^❓ Help$/, async (msg) => {
             if (msg.chat.id.toString() !== this.chatId) return;
             await this.sendTelegramMessage(`
@@ -220,12 +294,13 @@ ${pairsList || '  (none)'}
 
 📊 *Monitoring*
 /status — Bot status & P&L
+/readiness — Go\\-live readiness score
 /pairs — Active trading pairs
 /scanner — Pair scanner rankings
 /analyze <pair> — Market analysis
 
 🎯 *Pair Management*
-/rescan — Force market re-scan
+/rescan — Force market re\\-scan
 /add\\_pair <pair> — Add pair manually
 /remove\\_pair <pair> — Remove pair
 
@@ -239,8 +314,12 @@ ${pairsList || '  (none)'}
         // ─── /status ───
         this.telegramBot.onText(/\/status/, async (msg) => {
             if (msg.chat.id.toString() !== this.chatId) return;
-            const message = await sendStatus();
-            await this.sendTelegramMessage(message);
+            try {
+                const message = await sendStatus();
+                await this.sendTelegramMessage(message);
+            } catch (e: any) {
+                await this.sendTelegramMessage(`⚠️ Status error: ${e.message}`);
+            }
         });
 
         // ─── /scanner ───
@@ -348,6 +427,16 @@ Trailing: +${config.strategy.trailingStopActivation}% activate, ${config.strateg
             await this.sendTelegramMessage(message);
         });
 
+        // ─── /readiness ───
+        this.telegramBot.onText(/\/readiness/, async (msg) => {
+            if (msg.chat.id.toString() !== this.chatId) return;
+            try {
+                await this.sendTelegramMessage(await buildReadiness());
+            } catch (e: any) {
+                await this.sendTelegramMessage(`⚠️ Readiness error: ${e.message}`);
+            }
+        });
+
         // ─── /retrain ───
         this.telegramBot.onText(/\/retrain/, async (msg) => {
             if (msg.chat.id.toString() !== this.chatId) return;
@@ -373,12 +462,13 @@ Trailing: +${config.strategy.trailingStopActivation}% activate, ${config.strateg
 
 📊 *Monitoring*
 /status — Bot status & P&L
+/readiness — Go\\-live readiness score
 /pairs — Active trading pairs
 /scanner — Pair scanner rankings
 /analyze <pair> — Market analysis
 
 🎯 *Pair Management*
-/rescan — Force market re-scan
+/rescan — Force market re\\-scan
 /add\\_pair <pair> — Add pair manually
 /remove\\_pair <pair> — Remove pair
 
@@ -446,8 +536,19 @@ Trailing: +${config.strategy.trailingStopActivation}% activate, ${config.strateg
                         await this.sendTelegramMessage(result);
                         break;
                     }
-                    case 'help': {
-                        await this.sendTelegramMessage('Send /help to see all commands.');
+                    case 'readiness': {
+                        try {
+                            await this.sendTelegramMessage(await buildReadiness());
+                        } catch (e: any) {
+                            await this.sendTelegramMessage(`⚠️ Readiness error: ${e.message}`);
+                        }
+                        break;
+                    }
+                    case 'min_size': {
+                        const minSize = callbacks.onGetMinSize();
+                        await this.sendTelegramMessage(
+                            `⚙️ *Min Position Size*\n\nCurrent: *$${minSize.toFixed(2)}*\n\nTo change, send:\n/min\\_size <value>\n\nExample: /min\\_size 20`
+                        );
                         break;
                     }
                 }

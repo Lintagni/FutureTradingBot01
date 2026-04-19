@@ -1,4 +1,4 @@
-app = "futures-trading-bot"
+app = "futures-trading-bot-wmg"
 primary_region = "fra"
 
 [build]

@@ -75,6 +75,9 @@ async function main() {
             }
         });
 
+        // Start Web Dashboard immediately so port 8080 is up before Fly health checks
+        webServer.start();
+
         // Start engine
         await futuresEngine.start();
 
@@ -84,9 +87,8 @@ async function main() {
         // Notify startup
         await notifier.notifyBotStarted();
 
-        // Start Web Dashboard and connect live engine data
+        // Connect live engine data to dashboard
         webServer.registerEngine(futuresEngine);
-        webServer.start();
 
         // Keep the process running
         logger.info('Trading bot is running. Press Ctrl+C to stop.');

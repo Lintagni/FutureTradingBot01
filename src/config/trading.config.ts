@@ -22,7 +22,7 @@ export const config = {
 
     // Market Scanner Configuration
     scanner: {
-        maxActivePairs: parseInt(process.env.MAX_ACTIVE_PAIRS || '2'),
+        maxActivePairs: parseInt(process.env.MAX_ACTIVE_PAIRS || '3'),
         scanIntervalMinutes: parseInt(process.env.SCAN_INTERVAL_MINUTES || '5'),
         minDailyVolumeUSD: parseFloat(process.env.MIN_DAILY_VOLUME || '5000000'),
         minPrice: parseFloat(process.env.MIN_PAIR_PRICE || '1.0'),
@@ -40,8 +40,16 @@ export const config = {
         stopLossPercentage: parseFloat(process.env.STOP_LOSS_PERCENTAGE || '3.5'),
         takeProfitPercentage: parseFloat(process.env.TAKE_PROFIT_PERCENTAGE || '4.5'),
         maxOpenPositions: 3,
-        positionSizePercentage: 0.02, // 2% of capital per trade
+        positionSizePercentage: 0.02, // legacy fallback — tiers override this
     },
+
+    // Capital-Adaptive Tiers — bot auto-scales as balance grows
+    capitalTiers: [
+        { name: 'micro',  maxBalance: 50,       positionPct: 0.45, leverage: 2, minScannerPrice: 0.001 },
+        { name: 'small',  maxBalance: 200,       positionPct: 0.20, leverage: 2, minScannerPrice: 0.5 },
+        { name: 'medium', maxBalance: 1000,      positionPct: 0.08, leverage: 3, minScannerPrice: 1.0 },
+        { name: 'large',  maxBalance: Infinity,  positionPct: 0.03, leverage: 3, minScannerPrice: 1.0 },
+    ],
 
     // Strategy Parameters
     strategy: {
@@ -67,7 +75,7 @@ export const config = {
         volumeMultiplier: 1.5, // Signal requires 1.5x average volume
 
         // ML Confidence Threshold
-        mlConfidenceThreshold: 0.45, // Raised from 0.35 — AI must be more confident
+        mlConfidenceThreshold: 0.55, // Raised from 0.45 — stricter filter to reduce bad trades
 
         // Adaptive Learning Thresholds
         minConfidence: 0.40,       // Raised from 0.30
@@ -75,7 +83,7 @@ export const config = {
 
         // ATR Settings for Dynamic SL/TP
         atrMultiplierSL: 2.0,
-        atrMultiplierTP: 3.0,
+        atrMultiplierTP: 4.0, // Raised from 3.0 — R:R now 1:2, breakeven drops to 33.3%
 
         // Trailing Stop Settings
         trailingStopActivation: 1.5, // Activate trailing stop at +1.5% profit

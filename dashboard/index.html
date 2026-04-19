@@ -201,6 +201,101 @@
   .refresh-timer.dead  { color: var(--red);    border-color: rgba(244,63,94,0.3); }
   .refresh-icon { font-size: 11px; }
 
+  /* ── Settings card ──────────────────────────────── */
+  .settings-body { padding: 20px 24px; }
+  .settings-section-title {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .07em;
+    margin: 20px 0 10px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-section-title:first-child { margin-top: 0; }
+  .config-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px 24px;
+  }
+  @media (max-width: 640px) { .config-grid { grid-template-columns: 1fr; } }
+  .config-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .config-key { color: var(--muted); }
+  .config-val { font-weight: 600; color: var(--text); }
+  .config-val.highlight { color: var(--accent); }
+  .settings-edit-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .settings-input {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 12px; border-radius: 8px;
+    width: 110px; font-size: 13px; outline: none;
+    transition: border-color .15s;
+  }
+  .settings-input:focus { border-color: var(--accent); }
+  .settings-hint {
+    font-size: 11px; color: var(--muted); line-height: 1.8;
+    background: var(--surface2); border-radius: 8px; padding: 12px 16px;
+    margin-top: 12px;
+  }
+  .settings-hint strong { color: var(--text); }
+
+  /* ── Live Readiness card ─────────────────────────── */
+  .readiness-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px 24px;
+  }
+  .readiness-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .readiness-header h2 { font-size: 14px; font-weight: 700; }
+  .readiness-score-wrap {
+    display: flex; align-items: center; gap: 18px; margin-bottom: 16px;
+  }
+  .readiness-circle {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; flex-shrink: 0;
+    border: 3px solid var(--border);
+  }
+  .readiness-circle.low    { border-color: var(--red);    color: var(--red); }
+  .readiness-circle.mid    { border-color: var(--yellow); color: var(--yellow); }
+  .readiness-circle.high   { border-color: #a78bfa;       color: #a78bfa; }
+  .readiness-circle.ready  { border-color: var(--green);  color: var(--green); }
+  .readiness-label {
+    font-size: 15px; font-weight: 700;
+  }
+  .readiness-label.low   { color: var(--red); }
+  .readiness-label.mid   { color: var(--yellow); }
+  .readiness-label.high  { color: #a78bfa; }
+  .readiness-label.ready { color: var(--green); }
+  .readiness-list {
+    list-style: none; display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 14px;
+  }
+  .readiness-list li {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 13px; color: var(--text);
+  }
+  .readiness-list li .rl-icon { font-size: 13px; flex-shrink: 0; }
+  .readiness-list li .rl-bar-wrap {
+    flex: 1; height: 4px; background: var(--border); border-radius: 2px;
+    overflow: hidden; margin-left: 4px;
+  }
+  .readiness-list li .rl-bar { height: 100%; border-radius: 2px; transition: width .4s; }
+  .readiness-list li.pass .rl-bar { background: var(--green); }
+  .readiness-list li.fail .rl-bar { background: var(--red); }
+  .readiness-hint {
+    font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6;
+  }
+  .readiness-hint code {
+    font-family: 'Consolas', monospace; font-size: 11px;
+    background: var(--surface2); padding: 1px 5px; border-radius: 4px;
+    color: var(--accent);
+  }
+
   /* ── Mobile ──────────────────────────────────────── */
   @media (max-width: 720px) {
     .sidebar { display: none; }
@@ -223,6 +318,7 @@
     <button class="nav-item" onclick="showTab('positions')"><span class="icon">📈</span>Positions</button>
     <button class="nav-item" onclick="showTab('trades')"><span class="icon">🗂</span>Trade History</button>
     <button class="nav-item" onclick="showTab('logs')"><span class="icon">🖥</span>Live Logs</button>
+    <button class="nav-item" onclick="showTab('settings')"><span class="icon">⚙️</span>Settings</button>
 
     <div class="sidebar-footer">
       <div class="conn-indicator">
@@ -346,6 +442,79 @@
       <div class="log-wrap" id="log-wrap"></div>
     </div>
 
+    <!-- Settings -->
+    <div class="card" id="tab-settings">
+      <div class="card-head">
+        <h2>⚙️ Settings &amp; Configuration</h2>
+        <span class="refresh-tag" id="config-loaded">Loading…</span>
+      </div>
+      <div class="settings-body">
+
+        <!-- Risk Management -->
+        <div class="settings-section-title">Risk Management</div>
+        <div class="config-grid" id="cfg-risk"></div>
+
+        <!-- Futures -->
+        <div class="settings-section-title">Futures</div>
+        <div class="config-grid" id="cfg-futures"></div>
+
+        <!-- Strategy -->
+        <div class="settings-section-title">Strategy</div>
+        <div class="config-grid" id="cfg-strategy"></div>
+
+        <!-- Market Scanner -->
+        <div class="settings-section-title">Market Scanner</div>
+        <div class="config-grid" id="cfg-scanner"></div>
+
+        <!-- AI -->
+        <div class="settings-section-title">AI Model</div>
+        <div class="config-grid" id="cfg-ai"></div>
+
+        <!-- Editable settings -->
+        <div class="settings-section-title">Adjust Live Settings</div>
+        <div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Min Position Size — smallest trade value in USD (takes effect immediately)</div>
+          <div class="settings-edit-row">
+            <span style="font-size:13px">$</span>
+            <input class="settings-input" type="number" id="input-min-size" min="1" step="1" placeholder="e.g. 10">
+            <button class="btn start" style="padding:7px 18px;font-size:13px" onclick="saveMinSize()">Save</button>
+            <span id="save-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+        </div>
+
+        <!-- Data refresh info -->
+        <div class="settings-hint" style="margin-top:20px">
+          <strong>Data Refresh:</strong> WebSocket pushes state every <strong>5 s</strong>. REST API fallback polls every <strong>8 s</strong>.<br>
+          <strong>AI Retraining:</strong> Automatic every <strong>12 hours</strong> using BTC · ETH · SOL · BNB · XRP · DOGE · AVAX · LINK candles.<br>
+          <strong>Market Scanner:</strong> Re-scans every <strong>5 min</strong>, selects top 2 pairs by ADX + volume + ATR momentum.<br>
+          <strong>HTF Filter:</strong> 1h &amp; 4h EMA trend cached <strong>15 min</strong> per pair — against-trend entries get confidence penalty.<br>
+          <strong>To change mode / leverage / pairs:</strong> Update environment variables and redeploy.
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Live Readiness (paper mode only) -->
+    <div class="readiness-card" id="readiness-card" style="display:none">
+      <div class="readiness-header">
+        <h2>🎯 Live Readiness</h2>
+        <span class="refresh-tag">Paper Mode Only</span>
+      </div>
+      <div class="readiness-score-wrap">
+        <div class="readiness-circle low" id="readiness-circle">
+          <span id="readiness-pct">0%</span>
+        </div>
+        <div>
+          <div class="readiness-label low" id="readiness-label">Keep Paper Trading</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">Paper trades needed before going live</div>
+        </div>
+      </div>
+      <ul class="readiness-list" id="readiness-list"></ul>
+      <div class="readiness-hint">
+        When score reaches <strong>100%</strong>, set <code>TRADING_MODE=live</code> and replace testnet API keys with real Bybit mainnet keys, then redeploy.
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -445,11 +614,9 @@ function applyState(s) {
   // Stats
   const bal = s.walletBalances && s.walletBalances['USDT'];
   setEl('s-balance', bal != null ? '$' + bal.toFixed(2) : '—');
-  // Daily P&L = closed trades today; show unrealized if no closed trades yet
-  const shownDaily = (s.dailyPnL || 0) + (s.unrealizedPnL || 0);
-  setPnl('s-daily', shownDaily);
-  const shownTotal = (s.totalPnL || 0) + (s.unrealizedPnL || 0);
-  setPnl('s-total', shownTotal);
+  // Realized P&L only — unrealized is shown in the open positions table
+  setPnl('s-daily', s.dailyPnL || 0);
+  setPnl('s-total', s.totalPnL || 0);
 
   const wr = s.lifetimeWinRate;
   const wrEl = document.getElementById('s-winrate');
@@ -462,6 +629,81 @@ function applyState(s) {
   setEl('s-leverage-info', `${s.leverage ?? 3}× ${s.marginMode ?? 'isolated'}`);
 
   updatePositions(s.positionDetails || []);
+  renderReadiness(s);
+}
+
+function renderReadiness(s) {
+  const card = document.getElementById('readiness-card');
+  if (s.mode !== 'paper' || !s.readiness) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const r = s.readiness;
+  const score = r.score;
+  const t = r.thresholds;
+
+  // Score circle
+  const pctEl = document.getElementById('readiness-pct');
+  const circEl = document.getElementById('readiness-circle');
+  const lblEl  = document.getElementById('readiness-label');
+  pctEl.textContent = score + '%';
+
+  let tier, label;
+  if (score >= 100) { tier = 'ready'; label = '✅ Ready to Go Live!'; }
+  else if (score >= 67) { tier = 'high';  label = '🟣 Almost There — Keep Going'; }
+  else if (score >= 34) { tier = 'mid';   label = '🟡 Making Progress'; }
+  else                  { tier = 'low';   label = '🔴 Keep Paper Trading'; }
+
+  circEl.className = 'readiness-circle ' + tier;
+  lblEl.className  = 'readiness-label '  + tier;
+  lblEl.textContent = label;
+
+  // Checklist items
+  const items = [
+    {
+      key: 'trades',
+      pass: t.trades.pass,
+      label: `Closed trades: ${t.trades.value} / ${t.trades.target}`,
+      progress: Math.min(t.trades.value / t.trades.target, 1),
+    },
+    {
+      key: 'winRate',
+      pass: t.winRate.pass,
+      label: `Win rate: ${(t.winRate.value || 0).toFixed(1)}% (need ≥${t.winRate.target}%)`,
+      progress: Math.min((t.winRate.value || 0) / t.winRate.target, 1),
+    },
+    {
+      key: 'profitable',
+      pass: t.profitable.pass,
+      label: `Total P&L: ${t.profitable.value >= 0 ? '+' : ''}$${(t.profitable.value || 0).toFixed(2)} (must be > $0)`,
+      progress: t.profitable.pass ? 1 : 0,
+    },
+    {
+      key: 'modelTrained',
+      pass: t.modelTrained.pass,
+      label: `AI model trained: ${t.modelTrained.pass ? 'Yes' : 'Not yet'}`,
+      progress: t.modelTrained.pass ? 1 : 0,
+    },
+    {
+      key: 'modelFresh',
+      pass: t.modelFresh.pass,
+      label: `Model freshness: ${t.modelFresh.value >= 9999 ? 'Never' : t.modelFresh.value + 'h ago'} (need < ${t.modelFresh.target}h)`,
+      progress: t.modelFresh.value >= 9999 ? 0 : Math.max(0, 1 - t.modelFresh.value / t.modelFresh.target),
+    },
+    {
+      key: 'dailyHealth',
+      pass: t.dailyHealth.pass,
+      label: `Today's P&L healthy: ${t.dailyHealth.pass ? 'Yes' : 'Negative day'}`,
+      progress: t.dailyHealth.pass ? 1 : 0,
+    },
+  ];
+
+  const ul = document.getElementById('readiness-list');
+  ul.innerHTML = items.map(item => `
+    <li class="${item.pass ? 'pass' : 'fail'}">
+      <span class="rl-icon">${item.pass ? '✅' : '❌'}</span>
+      <span style="flex:1">${escHtml(item.label)}</span>
+      <div class="rl-bar-wrap"><div class="rl-bar" style="width:${(item.progress * 100).toFixed(0)}%"></div></div>
+    </li>`).join('');
 }
 
 function setPnl(id, val) {
@@ -512,11 +754,13 @@ function renderTrades(trades) {
   tbody.innerHTML = trades.map(t => {
     const side = t.side === 'buy' ? 'LONG' : 'SHORT';
     const cls  = t.side === 'buy' ? 'buy' : 'sell';
-    const pnl  = t.pnl;
+    // Prisma model uses realizedPnl, not pnl
+    const pnl  = t.realizedPnl ?? t.pnl;
     const pnlHtml = pnl != null
       ? `<span class="pnl ${pnl >= 0 ? 'pos' : 'neg'}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}</span>`
       : '—';
-    const dt = t.closedAt || t.createdAt;
+    // Prisma model uses exitTime, not closedAt
+    const dt = t.exitTime || t.closedAt || t.entryTime || t.createdAt;
     const time = dt ? new Date(dt).toLocaleString() : '—';
     const exit = t.exitPrice ? '$' + Number(t.exitPrice).toFixed(4) : t.status;
     return `<tr>
@@ -529,13 +773,17 @@ function renderTrades(trades) {
     </tr>`;
   }).join('');
 
-  // P&L sparkline — last 20 closed trades with pnl
-  updateChart(trades.filter(t => t.pnl != null).slice(0, 20).reverse());
+  // P&L sparkline — last 20 closed trades with valid finite pnl
+  const closedWithPnl = trades
+    .filter(t => t.status === 'closed' || t.exitPrice)
+    .filter(t => { const v = parseFloat(t.realizedPnl ?? t.pnl); return Number.isFinite(v); })
+    .slice(0, 20).reverse();
+  updateChart(closedWithPnl);
 }
 
 function updateChart(trades) {
   const labels = trades.map((_, i) => '#' + (i + 1));
-  const data   = trades.map(t => parseFloat(t.pnl));
+  const data   = trades.map(t => { const v = parseFloat(t.realizedPnl ?? t.pnl); return Number.isFinite(v) ? v : 0; });
   const colors = data.map(v => v >= 0 ? 'rgba(34,211,165,.8)' : 'rgba(244,63,94,.8)');
 
   if (pnlChart) {
@@ -610,14 +858,103 @@ async function botStop() {
   setTimeout(pollStatus, 1500);
 }
 
+// ── Settings ────────────────────────────────────────────────────────────────
+function cfgRows(pairs) {
+  return pairs.map(([k, v]) =>
+    `<div class="config-row"><span class="config-key">${k}</span><span class="config-val">${v}</span></div>`
+  ).join('');
+}
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config');
+    if (!r.ok) return;
+    const c = await r.json();
+    document.getElementById('config-loaded').textContent = new Date().toLocaleTimeString();
+
+    document.getElementById('cfg-risk').innerHTML = cfgRows([
+      ['Min Position Size', '$' + c.minPositionSize],
+      ['Max Position Size', '$' + c.maxPositionSize],
+      ['Position Size %',   c.positionSizePercent + '% of capital'],
+      ['Stop Loss',         c.stopLossPercentage + '%'],
+      ['Take Profit',       c.takeProfitPercentage + '%'],
+      ['Max Daily Loss',    '$' + c.maxDailyLoss],
+      ['Max Open Positions', c.maxOpenPositions],
+    ]);
+
+    document.getElementById('cfg-futures').innerHTML = cfgRows([
+      ['Trading Mode',   c.mode.toUpperCase()],
+      ['Leverage',       c.leverage + 'x'],
+      ['Margin Mode',    c.marginMode],
+      ['Timeframe',      c.timeframe],
+    ]);
+
+    document.getElementById('cfg-strategy').innerHTML = cfgRows([
+      ['Trailing Activation', '+' + c.trailingActivation + '%'],
+      ['Trailing Distance',   c.trailingDistance + '%'],
+      ['Break-Even At',       '+' + c.breakEvenActivation + '%'],
+      ['Stale Position Exit', c.stalePositionHours + 'h'],
+    ]);
+
+    document.getElementById('cfg-scanner').innerHTML = cfgRows([
+      ['Auto Pair Selection', c.autoPairSelection ? 'Enabled' : 'Disabled'],
+      ['Max Active Pairs',    c.maxActivePairs],
+      ['Scan Interval',       c.scanIntervalMinutes + ' min'],
+      ['Min Volume (24h)',    '$' + (c.minDailyVolumeUSD / 1e6).toFixed(1) + 'M'],
+      ['Seed Pairs',          (c.tradingPairs || []).join(', ')],
+    ]);
+
+    document.getElementById('cfg-ai').innerHTML = cfgRows([
+      ['ML Confidence Threshold', (c.mlConfidenceThreshold * 100).toFixed(0) + '%'],
+      ['Retrain Interval',        '12 hours (auto)'],
+      ['Training Pairs',          'BTC ETH SOL BNB XRP DOGE AVAX LINK'],
+      ['HTF Cache TTL',           '15 min (1h + 4h EMA)'],
+      ['Fear & Greed Cache',      '1 hour'],
+      ['Funding Rate Cache',      '5 min'],
+    ]);
+
+    // Pre-fill editable input with current min size
+    document.getElementById('input-min-size').value = c.minPositionSize;
+  } catch (_) {}
+}
+
+async function saveMinSize() {
+  const val = parseFloat(document.getElementById('input-min-size').value);
+  const status = document.getElementById('save-status');
+  if (!val || val <= 0) { status.textContent = '⚠️ Enter a valid number'; return; }
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/settings/min-size', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      status.style.color = 'var(--green)';
+      status.textContent = '✅ Saved — takes effect immediately';
+      addLog(`Min position size updated to $${val}`, 'info');
+      setTimeout(() => { status.textContent = ''; status.style.color = ''; }, 4000);
+    } else {
+      status.style.color = 'var(--red)';
+      status.textContent = '❌ ' + (j.message || 'Failed');
+    }
+  } catch (e) {
+    status.style.color = 'var(--red)';
+    status.textContent = '❌ Request failed';
+  }
+}
+
+loadConfig();
+
 // ── Tab nav (sidebar handles visibility via CSS, all sections always rendered) ──
 function showTab(tab) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   event.currentTarget.classList.add('active');
-  const titles = { dashboard: 'Dashboard', positions: 'Open Positions', trades: 'Trade History', logs: 'Live Logs' };
+  const titles = { dashboard: 'Dashboard', positions: 'Open Positions', trades: 'Trade History', logs: 'Live Logs', settings: 'Settings' };
   document.getElementById('page-title').textContent = titles[tab] || tab;
   // Scroll the relevant card into view
-  const map = { positions: 'tab-positions', trades: 'tab-trades', logs: 'tab-logs' };
+  const map = { positions: 'tab-positions', trades: 'tab-trades', logs: 'tab-logs', settings: 'tab-settings' };
   if (map[tab]) document.getElementById(map[tab]).scrollIntoView({ behavior: 'smooth', block: 'start' });
   else window.scrollTo({ top: 0, behavior: 'smooth' });
 }

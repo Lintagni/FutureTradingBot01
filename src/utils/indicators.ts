@@ -34,6 +34,8 @@ export interface TechnicalIndicators {
     atr: number;
     adx: number;
     volumeAvg: number;
+    /** Rolling 50-candle VWAP (Volume-Weighted Average Price) */
+    vwap?: number;
 }
 
 export class IndicatorCalculator {
@@ -102,6 +104,21 @@ export class IndicatorCalculator {
         // Volume Average
         const volumeAvg = SMA.calculate({ period: 20, values: volumes });
 
+        // ── Rolling VWAP (50-candle window) ──────────────────────────────────
+        // typical_price = (high + low + close) / 3
+        // vwap[i] = sum(tp * vol, i-49..i) / sum(vol, i-49..i)
+        const VWAP_PERIOD = 50;
+        const vwapValues: number[] = new Array(candles.length).fill(NaN);
+        for (let i = VWAP_PERIOD - 1; i < candles.length; i++) {
+            let cumTPV = 0, cumVol = 0;
+            for (let j = i - VWAP_PERIOD + 1; j <= i; j++) {
+                const tp = (candles[j].high + candles[j].low + candles[j].close) / 3;
+                cumTPV += tp * candles[j].volume;
+                cumVol += candles[j].volume;
+            }
+            vwapValues[i] = cumVol > 0 ? cumTPV / cumVol : candles[i].close;
+        }
+
         // Align arrays (different indicators have different startup lags)
         const results: TechnicalIndicators[] = [];
 
@@ -130,7 +147,8 @@ export class IndicatorCalculator {
                 bb: bbValues[bbIdx] as any,
                 atr: atrValues[atrIdx],
                 adx: adxValues[adxIdx] as any,
-                volumeAvg: volumeAvg[volIdx]
+                volumeAvg: volumeAvg[volIdx],
+                vwap: isNaN(vwapValues[i]) ? undefined : vwapValues[i],
             });
         }
 
