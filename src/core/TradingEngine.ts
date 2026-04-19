@@ -526,13 +526,14 @@ export class TradingEngine {
         const aiScore = aiLearning.getPrediction(features);
         logger.info(`🤖 AI Score (${dirLabel}): ${(aiScore * 100).toFixed(1)}% | Threshold: ${(baseThreshold * 100).toFixed(0)}%`);
 
+        // AI size scaling: the 5% floor is the model's minimum output (not a real signal).
+        // Only hard-block below 4% which is physically impossible from predictProbability().
+        // Real gating is done by quality score + HTF + funding filters below.
         let aiSizeMultiplier = 1.0;
-        if (aiScore < 0.20) {
-            // Only hard-block when model is very confident it's a loss
-            logger.warn(`❌ AI strongly predicts loss for ${symbol} (${(aiScore * 100).toFixed(1)}%) — skipping`);
+        if (aiScore < 0.04) {
+            logger.warn(`❌ AI error state for ${symbol} (${(aiScore * 100).toFixed(1)}%) — skipping`);
             return;
         } else if (aiScore < baseThreshold) {
-            // Below threshold but not a strong loss signal — reduce size, still trade
             aiSizeMultiplier = 0.8;
             logger.info(`⚠️ AI below threshold (${(aiScore * 100).toFixed(1)}%) — trading with 80% size`);
         } else if (aiScore > 0.75) {
