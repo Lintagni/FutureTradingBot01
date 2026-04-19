@@ -101,7 +101,7 @@ export class AutoRetrainer {
             const allLabels: number[] = [];
 
             const ATR_SL_MULT = config.strategy.atrMultiplierSL || 2.0;
-            const ATR_TP_MULT = config.strategy.atrMultiplierTP || 3.0;
+            const ATR_TP_MULT = config.strategy.atrMultiplierTP || 4.0;
             const LOOKAHEAD = 36;
 
             // Fetch data from multiple pairs

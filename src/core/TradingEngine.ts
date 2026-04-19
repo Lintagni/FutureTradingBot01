@@ -519,7 +519,7 @@ export class TradingEngine {
         const features = extractFeatures(
             signal.indicators,
             signal.price,
-            (signal.indicators as any).volumeAvg,
+            (signal.indicators as any).currentVolume ?? (signal.indicators as any).volumeAvg ?? 0,
             isLong
         );
 

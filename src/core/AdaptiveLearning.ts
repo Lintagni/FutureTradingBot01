@@ -194,6 +194,8 @@ export function extractFeatures(
 ): number[] {
     const safeDiv = (n: number, d: number) => (d === 0 || !d ? 0 : n / d);
 
+    const adxNum = typeof indicators.adx === 'object' ? (indicators.adx as any)?.adx ?? 25 : indicators.adx ?? 25;
+
     const rawFeatures = [
         indicators.rsi || 50,
         indicators.macd?.histogram || 0,
@@ -201,7 +203,7 @@ export function extractFeatures(
         safeDiv(currentPrice, indicators.ema9),
         safeDiv(currentVolume, indicators.volumeAvg),
         safeDiv((indicators.bb?.upper - indicators.bb?.lower), indicators.bb?.middle),
-        indicators.adx || 25,
+        adxNum,
         isLong ? 1.0 : 0.0,
     ];
 

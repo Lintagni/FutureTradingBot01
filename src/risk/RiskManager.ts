@@ -95,7 +95,7 @@ export class RiskManager {
      */
     async canOpenPosition(symbol: string): Promise<boolean> {
         // Check number of open positions
-        const openTrades = await tradeRepository.getOpenTrades();
+        const openTrades = await tradeRepository.getOpenTrades(undefined, 'futures');
 
         if (openTrades.length >= config.risk.maxOpenPositions) {
             riskLogger.warn(
@@ -106,7 +106,7 @@ export class RiskManager {
 
         // Check daily loss limit
         const today = new Date();
-        const dailyPnl = await tradeRepository.getDailyPnL(today);
+        const dailyPnl = await tradeRepository.getDailyPnL(today, 'futures');
         const maxLoss = config.risk.maxDailyLoss;
 
         if (dailyPnl < -maxLoss) {
