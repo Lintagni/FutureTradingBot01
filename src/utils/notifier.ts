@@ -1,6 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { config } from '../config/trading.config';
 import { logger } from './logger';
+import { version as BOT_VERSION } from '../../package.json';
 
 class Notifier {
     private telegramBot?: TelegramBot;
@@ -189,7 +190,7 @@ _When 100%: set_ \`TRADING\\_MODE=live\` _\\+ real Bybit API keys_`;
             }
 
             return `
-📊 *Bot Status*
+📊 *Bot Status* — v${BOT_VERSION}
 
 *State:* ${s.isRunning ? '✅ Running' : '🛑 Stopped'}
 *Mode:* ${config.mode.toUpperCase()} | ${autoMode} Pairs
@@ -748,7 +749,7 @@ Net P&L: ${sign}$${data.netPnl.toFixed(2)}
     async notifyBotStarted(): Promise<void> {
         const mode = config.autoPairSelection ? '🤖 Auto Pair Selection' : '📌 Manual Pairs';
         const pairs = config.tradingPairs.join(', ');
-        const message = `🚀 *Futures Trading Bot Started*\nMode: ${config.mode.toUpperCase()} | ${config.futures.leverage}x ${config.futures.marginMode}\nPairs: ${mode}\nSeed: ${pairs}`;
+        const message = `🚀 *Futures Trading Bot Started* — v${BOT_VERSION}\nMode: ${config.mode.toUpperCase()} | ${config.futures.leverage}x ${config.futures.marginMode}\nPairs: ${mode}\nSeed: ${pairs}`;
         await this.sendTelegramMessage(message);
         await this.sendDiscordMessage(message);
         // Show control panel with inline buttons after startup notification

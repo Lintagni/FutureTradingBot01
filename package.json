@@ -1,6 +1,6 @@
 {
   "name": "ai-crypto-trading-bot",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "AI-powered cryptocurrency trading bot for Binance and Bybit",
   "main": "dist/index.js",
   "scripts": {
