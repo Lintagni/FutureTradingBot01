@@ -4,6 +4,7 @@ import { aiModel } from './RandomForestModel';
 import { logger } from '../utils/logger';
 import { notifier } from '../utils/notifier';
 import { config } from '../config/trading.config';
+import { getOwnTradesSamples } from './TradeHistoryTrainer';
 import fs from 'fs';
 import path from 'path';
 
@@ -221,6 +222,34 @@ export class AutoRetrainer {
                 return;
             }
 
+            // ─── Mix in own trade history (30% of total) ───
+            // Own trades are the most relevant signal: they show what THIS bot wins/loses on.
+            const ownSamples = await getOwnTradesSamples(500);
+            let ownTradeCount = 0;
+            if (ownSamples.features.length >= 10) {
+                // Scale own trades to ~30% of total: ownN / (ownN + marketN) = 0.30
+                const maxOwn = Math.min(ownSamples.features.length, Math.round(balancedFeatures.length * 3 / 7));
+                const shuffledOwn = ownSamples.features
+                    .map((f, i) => ({ f, l: ownSamples.labels[i] }))
+                    .sort(() => Math.random() - 0.5)
+                    .slice(0, maxOwn);
+
+                for (const { f, l } of shuffledOwn) {
+                    balancedFeatures.push(f);
+                    balancedLabels.push(l);
+                }
+                // Shuffle combined dataset
+                const combined = balancedFeatures.map((f, i) => ({ f, l: balancedLabels[i] }))
+                    .sort(() => Math.random() - 0.5);
+                balancedFeatures = combined.map(x => x.f);
+                balancedLabels   = combined.map(x => x.l);
+
+                ownTradeCount = shuffledOwn.length;
+                logger.info(`AutoRetrainer: Mixed in ${ownTradeCount} own-trade samples (${((ownTradeCount / balancedFeatures.length) * 100).toFixed(1)}% of total)`);
+            } else {
+                logger.info(`AutoRetrainer: Not enough own-trade samples yet (${ownSamples.features.length}) — using market candles only`);
+            }
+
             // ─── Backup current model before overwriting ───
             const modelPath = path.join(process.cwd(), 'models', 'random_forest.json');
             const backupPath = path.join(process.cwd(), 'models', 'random_forest_backup.json');
@@ -238,7 +267,9 @@ export class AutoRetrainer {
 
             const duration = ((Date.now() - startTime) / 1000).toFixed(0);
             const winPct = allFeatures.length > 0 ? (wins / allFeatures.length * 100).toFixed(1) : '0';
-            const msg = `🔄 *AI Retrained*\n\n📊 ${balancedFeatures.length} samples (${this.trainingPairs.join(', ')})\n⏱️ Duration: ${duration}s\n📈 Win labels: ${wins}/${allFeatures.length} (${winPct}%)`;
+            const ownPct = balancedFeatures.length > 0 ? ((ownTradeCount / balancedFeatures.length) * 100).toFixed(1) : '0';
+            const ownLine = ownTradeCount > 0 ? `\n🤖 Own trades: ${ownTradeCount} samples (${ownPct}% of training)` : '';
+            const msg = `🔄 *AI Retrained*\n\n📊 ${balancedFeatures.length} samples (${this.trainingPairs.join(', ')})\n⏱️ Duration: ${duration}s\n📈 Win labels: ${wins}/${allFeatures.length} (${winPct}%)${ownLine}`;
 
             logger.info(`AutoRetrainer: ✅ Model saved (${balancedFeatures.length} samples, ${duration}s)`);
             await notifier.sendTelegramMessage(msg);

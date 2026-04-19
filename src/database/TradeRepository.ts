@@ -19,7 +19,8 @@ export interface CreateTradeData {
     signal: string;
     confidence?: number;
     marketType?: string;
-    leverage?: number; // Futures leverage (e.g. 3 for 3x)
+    leverage?: number;
+    entryFeatures?: string; // JSON-encoded AI feature array at entry time
 }
 
 export interface UpdateTradeData {
@@ -362,6 +363,28 @@ export class TradeRepository {
         } catch (error) {
             logger.error('Error updating bot state:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Get closed trades that have stored entryFeatures (for own-trade AI training).
+     */
+    async getClosedTradesWithFeatures(limit: number = 500, marketType: string = 'futures') {
+        try {
+            return await prisma.trade.findMany({
+                where: {
+                    status: 'closed',
+                    marketType,
+                    NOT: { entryFeatures: null },
+                    realizedPnl: { not: null },
+                },
+                select: { entryFeatures: true, realizedPnl: true, side: true },
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+            });
+        } catch (error) {
+            logger.error('Error fetching trades with features:', error);
+            return [];
         }
     }
 

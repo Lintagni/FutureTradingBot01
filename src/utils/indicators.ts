@@ -34,6 +34,7 @@ export interface TechnicalIndicators {
     atr: number;
     adx: number;
     volumeAvg: number;
+    currentVolume: number;
     /** Rolling 50-candle VWAP (Volume-Weighted Average Price) */
     vwap?: number;
 }
@@ -148,6 +149,7 @@ export class IndicatorCalculator {
                 atr: atrValues[atrIdx],
                 adx: adxValues[adxIdx] as any,
                 volumeAvg: volumeAvg[volIdx],
+                currentVolume: volumes[i],
                 vwap: isNaN(vwapValues[i]) ? undefined : vwapValues[i],
             });
         }

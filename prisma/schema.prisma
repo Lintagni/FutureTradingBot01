@@ -41,7 +41,8 @@ model Trade {
 
   marketType    String   @default("spot") // 'spot' or 'futures'
   leverage      Int?                      // Futures leverage used (e.g. 3 for 3x, null for spot)
-  
+  entryFeatures String?                   // JSON array of AI features at entry (for own-trade training)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   

@@ -605,7 +605,19 @@ export class TradingEngine {
             return;
         }
 
-        // ─── 4. Open Interest Confirmation ────────────────────────────────────
+        // ─── 4. Trade Quality Score ───────────────────────────────────────────
+        // Composite 0–100 score across HTF alignment, volume, MACD, funding.
+        // Minimum 50/100 to enter (both HTF aligned = 50pts floor).
+        const quality = this.computeQualityScore(
+            isLong, htfBullish1h, htfBullish4h, fundingRateValue, signal.indicators
+        );
+        logger.info(`📊 Quality Score: ${quality.score}/100 | ${quality.breakdown}`);
+        if (quality.score < 50) {
+            logger.warn(`❌ Quality score ${quality.score}/100 < 50 — skipping ${dirLabel} for ${symbol}`);
+            return;
+        }
+
+        // ─── 5. Open Interest Confirmation ────────────────────────────────────
         // Rising OI + long or falling OI + short = institutional confirmation.
         let oiSizeMultiplier = 1.0;
         if (bybitEx.getOpenInterestChange) {
@@ -726,7 +738,7 @@ export class TradingEngine {
                     );
                 }
 
-                // Save trade to database
+                // Save trade to database — include AI feature snapshot for own-trade training
                 const trade = await tradeRepository.createTrade({
                     exchange: this.exchange.getName(),
                     symbol,
@@ -742,6 +754,7 @@ export class TradingEngine {
                     confidence: signal.confidence,
                     marketType: 'futures',
                     leverage,
+                    entryFeatures: JSON.stringify(features),
                 });
 
                 // Re-check in-memory map right before committing — DB check above may be stale
@@ -930,6 +943,61 @@ export class TradingEngine {
                 await this.closePosition(symbol, position, currentPrice, closeReason);
             }
         }
+    }
+
+    /**
+     * Compute a 0–100 composite quality score for a trade setup.
+     * Minimum 50/100 required to enter. Both HTF aligned = 50pts floor.
+     */
+    private computeQualityScore(
+        isLong: boolean,
+        htfBullish1h: boolean | null,
+        htfBullish4h: boolean | null,
+        fundingRate: number | undefined,
+        indicators: any,
+    ): { score: number; breakdown: string } {
+        let score = 0;
+        const parts: string[] = [];
+
+        // HTF 1h alignment (25pts)
+        if (htfBullish1h !== null) {
+            const pts = ((isLong && htfBullish1h) || (!isLong && !htfBullish1h)) ? 25 : 0;
+            score += pts;
+            parts.push(`1h:${pts}`);
+        }
+
+        // HTF 4h alignment (25pts)
+        if (htfBullish4h !== null) {
+            const pts = ((isLong && htfBullish4h) || (!isLong && !htfBullish4h)) ? 25 : 0;
+            score += pts;
+            parts.push(`4h:${pts}`);
+        }
+
+        // Volume surge (20pts)
+        const volRatio = indicators.volumeAvg > 0
+            ? (indicators.currentVolume || 0) / indicators.volumeAvg
+            : 0;
+        const volPts = volRatio >= 1.5 ? 20 : volRatio >= 1.2 ? 10 : 0;
+        score += volPts;
+        parts.push(`Vol:${volPts}`);
+
+        // MACD momentum in trade direction (15pts)
+        const hist = indicators.macd?.histogram || 0;
+        const macdAligned = (isLong && hist > 0) || (!isLong && hist < 0);
+        const macdPts = (macdAligned && Math.abs(hist) > 0) ? 15 : 0;
+        score += macdPts;
+        parts.push(`MACD:${macdPts}`);
+
+        // Funding cost (15pts) — low funding = cheap to hold
+        let fundPts = 10; // default if unknown
+        if (fundingRate !== undefined) {
+            const abs = Math.abs(fundingRate);
+            fundPts = abs < 0.0002 ? 15 : abs < 0.0003 ? 7 : 0;
+        }
+        score += fundPts;
+        parts.push(`Fund:${fundPts}`);
+
+        return { score, breakdown: parts.join(' | ') };
     }
 
     /**
