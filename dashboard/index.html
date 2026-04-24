@@ -283,7 +283,7 @@ function PnLChart({trades,t}) {
 
   useEffect(()=>{
     if(!chart.current) return;
-    const sorted=[...trades].reverse();
+    const sorted=[...trades].slice(0,20).reverse();
     let cum=0;
     const cumData=sorted.map(tr=>{cum+=tr.pnl;return+cum.toFixed(2);});
     const th=tRef.current;
