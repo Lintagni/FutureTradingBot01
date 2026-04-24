@@ -2,11 +2,36 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
+import fs from 'fs';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import { logger } from './logger';
 import { config } from '../config/trading.config';
 import { tradeRepository } from '../database/TradeRepository';
+
+// Credentials: persisted to volume so changes survive restarts
+const CREDS_FILE = '/data/dashboard-credentials.json';
+
+function loadCredentials(): { username: string; password: string } {
+    try {
+        if (fs.existsSync(CREDS_FILE)) {
+            return JSON.parse(fs.readFileSync(CREDS_FILE, 'utf-8'));
+        }
+    } catch (_) { /* fall through */ }
+    return {
+        username: process.env.DASHBOARD_USERNAME || 'admin',
+        password: process.env.DASHBOARD_PASSWORD || 'changeme',
+    };
+}
+
+function saveCredentials(username: string, password: string) {
+    try {
+        fs.mkdirSync(path.dirname(CREDS_FILE), { recursive: true });
+        fs.writeFileSync(CREDS_FILE, JSON.stringify({ username, password }), 'utf-8');
+    } catch (e) {
+        logger.error('Failed to save credentials:', e);
+    }
+}
 
 declare module 'express-session' {
     interface SessionData {
@@ -93,9 +118,8 @@ export class WebServer {
         // ── Public auth routes (no requireAuth) ─────────────────────────────
         this.app.post('/api/login', (req, res) => {
             const { username, password } = req.body;
-            const validUser = process.env.DASHBOARD_USERNAME || 'admin';
-            const validPass = process.env.DASHBOARD_PASSWORD || 'changeme';
-            if (username === validUser && password === validPass) {
+            const creds = loadCredentials();
+            if (username === creds.username && password === creds.password) {
                 req.session.authenticated = true;
                 res.json({ ok: true });
             } else {
@@ -105,6 +129,26 @@ export class WebServer {
 
         this.app.post('/api/logout', (req, res) => {
             req.session.destroy(() => res.json({ ok: true }));
+        });
+
+        // ── Change credentials (protected — must be logged in) ───────────────
+        this.app.post('/api/settings/credentials', this.requireAuth.bind(this), (req, res) => {
+            const { currentPassword, newUsername, newPassword } = req.body;
+            if (!currentPassword || !newUsername || !newPassword) {
+                res.status(400).json({ ok: false, message: 'All fields are required' });
+                return;
+            }
+            const creds = loadCredentials();
+            if (currentPassword !== creds.password) {
+                res.status(401).json({ ok: false, message: 'Current password is incorrect' });
+                return;
+            }
+            if (newPassword.length < 8) {
+                res.status(400).json({ ok: false, message: 'New password must be at least 8 characters' });
+                return;
+            }
+            saveCredentials(newUsername.trim(), newPassword);
+            res.json({ ok: true, message: 'Credentials updated — you will be logged out' });
         });
 
         // ── Auth gate — everything below is protected ───────────────────────

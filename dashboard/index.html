@@ -914,6 +914,71 @@ function LogsSection({t,liveLogs=[],wsConnected}) {
   );
 }
 
+function CredentialsForm({t,inp,lbl}) {
+  const [cur,setCur]=useState('');
+  const [usr,setUsr]=useState('');
+  const [pwd,setPwd]=useState('');
+  const [pwd2,setPwd2]=useState('');
+  const [msg,setMsg]=useState(null); // {text, ok}
+  const [busy,setBusy]=useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setMsg(null);
+    if(pwd!==pwd2){setMsg({text:'New passwords do not match',ok:false});return;}
+    if(pwd.length<8){setMsg({text:'Password must be at least 8 characters',ok:false});return;}
+    setBusy(true);
+    try {
+      const r=await fetch('/api/settings/credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:cur,newUsername:usr,newPassword:pwd})});
+      const d=await r.json();
+      if(d.ok){
+        setMsg({text:'Credentials updated — signing you out…',ok:true});
+        setCur('');setUsr('');setPwd('');setPwd2('');
+        setTimeout(async()=>{await fetch('/api/logout',{method:'POST'});window.location.href='/login.html';},1800);
+      } else {
+        setMsg({text:d.message||'Update failed',ok:false});
+      }
+    } catch(_){setMsg({text:'Network error',ok:false});}
+    setBusy(false);
+  }
+
+  const fieldStyle={...inp};
+  return (
+    <form onSubmit={handleSubmit}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+        <div>
+          <label style={lbl}>Current Password</label>
+          <input style={fieldStyle} type="password" value={cur} onChange={e=>setCur(e.target.value)} placeholder="Current password" required
+            onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/>
+        </div>
+        <div>
+          <label style={lbl}>New Username</label>
+          <input style={fieldStyle} type="text" value={usr} onChange={e=>setUsr(e.target.value)} placeholder="New username" required
+            onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/>
+        </div>
+        <div>
+          <label style={lbl}>New Password</label>
+          <input style={fieldStyle} type="password" value={pwd} onChange={e=>setPwd(e.target.value)} placeholder="Min 8 characters" required
+            onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/>
+        </div>
+        <div>
+          <label style={lbl}>Confirm New Password</label>
+          <input style={fieldStyle} type="password" value={pwd2} onChange={e=>setPwd2(e.target.value)} placeholder="Repeat new password" required
+            onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/>
+        </div>
+      </div>
+      {msg && (
+        <div style={{marginBottom:12,padding:'9px 14px',borderRadius:7,background:msg.ok?t.greenDim:t.redDim,border:`1px solid ${msg.ok?t.green:t.red}33`,fontSize:12,color:msg.ok?t.green:t.red}}>
+          {msg.text}
+        </div>
+      )}
+      <button type="submit" disabled={busy} style={{padding:'9px 22px',borderRadius:7,border:'none',background:t.accent,color:t.bg,fontWeight:700,fontSize:13,cursor:busy?'not-allowed':'pointer',fontFamily:'inherit',opacity:busy?0.6:1}}>
+        {busy?'Saving…':'Update Credentials'}
+      </button>
+    </form>
+  );
+}
+
 function SettingsSection({t}) {
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'24px'};
   const inp={width:'100%',background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:'9px 12px',color:t.text,fontSize:13,outline:'none',fontFamily:'inherit',transition:'border 0.15s'};
@@ -960,6 +1025,12 @@ function SettingsSection({t}) {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Change credentials */}
+        <div style={{...card,gridColumn:'span 2'}}>
+          <div style={hdr}>Change Login Credentials</div>
+          <CredentialsForm t={t} inp={inp} lbl={lbl}/>
         </div>
       </div>
     </div>
