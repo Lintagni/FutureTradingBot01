@@ -45,14 +45,15 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-// Register service worker for PWA — reload page when SW activates new version
+// Register service worker for PWA
+// controllerchange fires when a new SW activates and claims this page (after skipWaiting + clients.claim)
+// This is more reliable than postMessage — no race condition with listener setup
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(()=>{});
-    navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.type === 'SW_UPDATED') window.location.reload();
-    });
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!reloading) { reloading = true; window.location.reload(); }
   });
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 
 // ─── RESPONSIVE ───────────────────────────────────────────────────────────────
