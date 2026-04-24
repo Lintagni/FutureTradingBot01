@@ -111,7 +111,7 @@ export class AutoRetrainer {
             logger.info(`🔄 AutoRetrainer: Fetching ${this.trainingPairs.length} pairs in parallel...`);
             const pairResults = await Promise.allSettled(
                 this.trainingPairs.map(symbol =>
-                    exchange.fetchOHLCV(symbol, config.timeframe, 200)
+                    exchange.fetchOHLCV(symbol, config.timeframe, 300)
                         .then(candles => ({ symbol, candles }))
                 )
             );
@@ -123,7 +123,7 @@ export class AutoRetrainer {
                 }
                 const { symbol, candles } = result.value;
 
-                if (candles.length < 100) {
+                if (candles.length < 150) {
                     logger.warn(`AutoRetrainer: Not enough data for ${symbol}, skipping.`);
                     continue;
                 }
@@ -277,20 +277,25 @@ export class AutoRetrainer {
             }
 
             // Final sanity check — reject any sample that isn't exactly 9 finite features.
-            // Guards against stale DB samples, malformed candle data, or any upstream bug.
             const EXPECTED_FEAT = 9;
             const preSanitize = balancedFeatures.length;
             const sanitized = balancedFeatures
                 .map((f, i) => ({ f, l: balancedLabels[i] }))
-                .filter(({ f }) => f.length === EXPECTED_FEAT && f.every(v => isFinite(v)));
+                .filter(({ f }) => Array.isArray(f) && f.length === EXPECTED_FEAT && f.every(v => typeof v === 'number' && isFinite(v)));
             balancedFeatures = sanitized.map(x => x.f);
             balancedLabels   = sanitized.map(x => x.l);
-            if (balancedFeatures.length < preSanitize) {
-                logger.warn(`AutoRetrainer: Dropped ${preSanitize - balancedFeatures.length} malformed samples (wrong length or non-finite values)`);
-            }
+
+            const finalWins   = balancedLabels.filter(l => l === 1).length;
+            const finalLosses = balancedLabels.filter(l => l === 0).length;
+            logger.info(`AutoRetrainer: Pre-train — ${balancedFeatures.length} samples (${finalWins} wins, ${finalLosses} losses), feat_len=${balancedFeatures[0]?.length ?? 'N/A'}`);
 
             if (balancedFeatures.length < 10) {
-                logger.warn(`AutoRetrainer: Too few clean samples after sanitization (${balancedFeatures.length}). Skipping.`);
+                logger.warn(`AutoRetrainer: Too few samples (${balancedFeatures.length}). Skipping.`);
+                this.isRetraining = false;
+                return;
+            }
+            if (finalWins === 0 || finalLosses === 0) {
+                logger.warn(`AutoRetrainer: Only one class in training data (wins=${finalWins}, losses=${finalLosses}). Skipping — model cannot learn.`);
                 this.isRetraining = false;
                 return;
             }
