@@ -23,7 +23,7 @@ export async function getOwnTradesSamples(limit: number = 500): Promise<OwnTrade
         if (!trade.entryFeatures) continue;
         try {
             const feat = JSON.parse(trade.entryFeatures) as number[];
-            if (!Array.isArray(feat) || feat.length < 7) continue;
+            if (!Array.isArray(feat) || feat.length !== 9) continue;
             if (!feat.every(v => Number.isFinite(v))) continue;
 
             const isWin = (trade.realizedPnl ?? 0) > 0;
