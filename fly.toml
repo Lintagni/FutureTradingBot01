@@ -19,6 +19,9 @@ primary_region = "fra"
   auto_start_machines = true
   min_machines_running = 1
 
+  [http_service.http_options]
+    h2_backend = false  # WebSocket upgrades require HTTP/1.1, not HTTP/2
+
 [[vm]]
   memory = "512mb"
   cpu_kind = "shared"

@@ -175,10 +175,10 @@ export class WebServer {
             // Send current state immediately on connect
             this.broadcastState();
 
-            // Keep-alive pings every 25 s — Fly.io proxy closes idle WS after ~60 s
+            // Keep-alive pings every 10 s — Fly.io proxy needs frequent pings to keep WS alive
             const pingInterval = setInterval(() => {
                 if (ws.readyState === WebSocket.OPEN) ws.ping();
-            }, 25000);
+            }, 10000);
 
             ws.on('pong', () => {}); // connection confirmed alive
             ws.on('close', () => {
