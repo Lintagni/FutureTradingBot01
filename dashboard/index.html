@@ -887,7 +887,7 @@ function SettingsSection({t}) {
 // ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 const NAV=[
   {id:'dashboard',label:'Dashboard'},
-  {id:'positions',label:'Positions',badge:'2'},
+  {id:'positions',label:'Positions'},
   {id:'history',label:'Trade History'},
   {id:'analytics',label:'Analytics'},
   {id:'logs',label:'Live Logs'},
@@ -907,7 +907,7 @@ function NavIcon({id,t,active}) {
   return icons[id]||null;
 }
 
-function Sidebar({t,active,setActive,running,setRunning}) {
+function Sidebar({t,active,setActive,running,setRunning,openPositions}) {
   return (
     <div style={{width:216,flexShrink:0,background:t.sidebar,borderRight:`1px solid ${t.sidebarBorder}`,display:'flex',flexDirection:'column',height:'100%'}}>
       <div style={{padding:'18px 18px 14px',borderBottom:`1px solid ${t.sidebarBorder}`}}>
@@ -931,7 +931,7 @@ function Sidebar({t,active,setActive,running,setRunning}) {
               onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color=t.textDim;}}}>
               <NavIcon id={item.id} t={t} active={isActive}/>
               <span style={{flex:1}}>{item.label}</span>
-              {item.badge && <span style={{fontSize:10,fontWeight:700,color:t.green,background:t.greenDim,padding:'1px 6px',borderRadius:10}}>{item.badge}</span>}
+              {item.id==='positions'&&openPositions>0 && <span style={{fontSize:10,fontWeight:700,color:t.green,background:t.greenDim,padding:'1px 6px',borderRadius:10}}>{openPositions}</span>}
             </button>
           );
         })}
@@ -1073,7 +1073,7 @@ function App() {
 
   return (
     <div style={{display:'flex',height:'100vh',background:t.bg,color:t.text,overflow:'hidden',position:'relative'}}>
-      <Sidebar t={t} active={active} setActive={setActive} running={running} setRunning={v=>v?handleStart():handleStop()}/>
+      <Sidebar t={t} active={active} setActive={setActive} running={running} setRunning={v=>v?handleStart():handleStop()} openPositions={status?.openPositions??0}/>
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <TopBar t={t} active={active} running={running}/>
         <main style={{flex:1,overflowY:'auto',padding:tweaks.compactMode?'14px':'22px'}}>
