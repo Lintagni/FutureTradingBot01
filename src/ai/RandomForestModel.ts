@@ -139,12 +139,6 @@ export class RandomForestModel {
                 const data = fs.readFileSync(this.modelPath, 'utf8');
                 const state = JSON.parse(data);
 
-                // Detect feature-count mismatch before loading — stale model from old feature set
-                const savedFeatureCount: number | undefined =
-                    state?.trees?.[0]?.root?.splitColumn !== undefined
-                        ? undefined  // can't easily read from tree structure
-                        : state?.nFeatures ?? state?.featureCount ?? undefined;
-
                 // Probe by attempting a dummy prediction with EXPECTED_FEATURE_COUNT features
                 const candidate = RFClassifier.load(state);
                 try {
