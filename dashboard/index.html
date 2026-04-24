@@ -238,19 +238,21 @@ function Sparkline({data,color,width=80,height=28}) {
 }
 
 function StatCard({label,value,sub,delta,accent,t,spark,sparkColor}) {
+  const {w} = useWindowSize();
+  const sm = w < 768;
   const pos = delta!==undefined ? delta>=0 : null;
   const col = accent ? (pos===false?t.red:pos===true?t.green:t.text) : t.text;
   return (
-    <div className="animate-in" style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'16px 18px',display:'flex',flexDirection:'column',gap:6,transition:'background 0.18s',cursor:'default'}}
+    <div className="animate-in" style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:sm?'12px 10px':'16px 18px',display:'flex',flexDirection:'column',gap:4,transition:'background 0.18s',cursor:'default',minWidth:0,overflow:'hidden'}}
       onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
       onMouseLeave={e=>e.currentTarget.style.background=t.card}>
-      <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.1em',color:t.textMuted,textTransform:'uppercase'}}>{label}</div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between'}}>
-        <div>
-          <div style={{fontSize:22,fontWeight:700,color:col,letterSpacing:'-0.02em',lineHeight:1}}>{value}</div>
-          {sub && <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{sub}</div>}
+      <div style={{fontSize:9,fontWeight:600,letterSpacing:'0.08em',color:t.textMuted,textTransform:'uppercase',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{label}</div>
+      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:4,minWidth:0}}>
+        <div style={{minWidth:0,flex:1,overflow:'hidden'}}>
+          <div style={{fontSize:sm?16:22,fontWeight:700,color:col,letterSpacing:'-0.02em',lineHeight:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{value}</div>
+          {sub && <div style={{fontSize:10,color:t.textDim,marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{sub}</div>}
         </div>
-        {spark && <Sparkline data={spark} color={sparkColor||col} width={80} height={38}/>}
+        {spark && !sm && <Sparkline data={spark} color={sparkColor||col} width={80} height={38}/>}
       </div>
     </div>
   );
@@ -608,9 +610,9 @@ function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <div>
               <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Cumulative P&L</div>
-              <div style={{fontSize:22,fontWeight:700,color:last20PnL>=0?t.green:t.red,marginTop:4}}>{fmt(last20PnL)}</div>
+              <div style={{fontSize:isMobile?18:22,fontWeight:700,color:last20PnL>=0?t.green:t.red,marginTop:4}}>{fmt(last20PnL)}</div>
             </div>
-            <Badge color="green" t={t}>Last 20 Trades</Badge>
+            <Badge color="green" t={t}>Last 20</Badge>
           </div>
           <div style={{height:isMobile?140:170}}><PnLChart trades={closedTrades} t={t}/></div>
         </div>
