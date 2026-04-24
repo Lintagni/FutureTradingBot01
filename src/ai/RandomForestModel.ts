@@ -3,6 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger';
 
+// Must match extractFeatures() in AdaptiveLearning.ts and baseFeat in AutoRetrainer.ts
+const EXPECTED_FEATURE_COUNT = 9;
+
 export class RandomForestModel {
     private model: RFClassifier | null = null;
     private modelPath: string;
@@ -135,7 +138,24 @@ export class RandomForestModel {
             try {
                 const data = fs.readFileSync(this.modelPath, 'utf8');
                 const state = JSON.parse(data);
-                this.model = RFClassifier.load(state);
+
+                // Detect feature-count mismatch before loading — stale model from old feature set
+                const savedFeatureCount: number | undefined =
+                    state?.trees?.[0]?.root?.splitColumn !== undefined
+                        ? undefined  // can't easily read from tree structure
+                        : state?.nFeatures ?? state?.featureCount ?? undefined;
+
+                // Probe by attempting a dummy prediction with EXPECTED_FEATURE_COUNT features
+                const candidate = RFClassifier.load(state);
+                try {
+                    candidate.predict([new Array(EXPECTED_FEATURE_COUNT).fill(0.5)]);
+                } catch {
+                    logger.warn(`🧠 Stale model detected (wrong feature count — expected ${EXPECTED_FEATURE_COUNT}). Deleting and starting fresh.`);
+                    fs.unlinkSync(this.modelPath);
+                    return false;
+                }
+
+                this.model = candidate;
                 logger.info('🧠 Model loaded successfully.');
                 return true;
             } catch (error) {
