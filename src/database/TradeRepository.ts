@@ -389,6 +389,53 @@ export class TradeRepository {
     }
 
     /**
+     * Long vs Short P&L breakdown — used by the analytics dashboard.
+     */
+    async getLongShortBreakdown(marketType: string = 'futures') {
+        try {
+            const trades = await prisma.trade.findMany({
+                where: { status: 'closed', marketType, realizedPnl: { not: null } },
+                select: { side: true, realizedPnl: true },
+            });
+
+            const result = {
+                long:  { earned: 0, lost: 0, wins: 0, losses: 0, total: 0 },
+                short: { earned: 0, lost: 0, wins: 0, losses: 0, total: 0 },
+            };
+
+            for (const t of trades) {
+                const isLong = t.side === 'buy';
+                const pnl = t.realizedPnl as number;
+                const side = isLong ? 'long' : 'short';
+                result[side].total++;
+                if (pnl > 0) { result[side].earned += pnl; result[side].wins++; }
+                else          { result[side].lost   += Math.abs(pnl); result[side].losses++; }
+            }
+
+            return result;
+        } catch (error) {
+            logger.error('Error fetching long/short breakdown:', error);
+            return {
+                long:  { earned: 0, lost: 0, wins: 0, losses: 0, total: 0 },
+                short: { earned: 0, lost: 0, wins: 0, losses: 0, total: 0 },
+            };
+        }
+    }
+
+    /**
+     * Count how many closed trades have stored entryFeatures (own-trade learning data).
+     */
+    async getOwnTradeFeatureCount(marketType: string = 'futures'): Promise<number> {
+        try {
+            return await prisma.trade.count({
+                where: { status: 'closed', marketType, NOT: { entryFeatures: null } },
+            });
+        } catch {
+            return 0;
+        }
+    }
+
+    /**
      * Get bot state
      */
     async getBotState() {

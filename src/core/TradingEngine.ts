@@ -1283,9 +1283,9 @@ export class TradingEngine {
         const walletBalances = new Map<string, number>();
 
         if (config.mode === 'paper') {
-            // Paper mode: only show USDT — all other coin balances are the same simulated value and are misleading
-            const paperBalance = parseFloat(process.env.PAPER_INITIAL_BALANCE || '10000');
-            walletBalances.set('USDT', paperBalance);
+            // Paper mode: initial capital ± realized P&L (live exchange balance is not used)
+            const paperInitial = parseFloat(process.env.PAPER_INITIAL_BALANCE || '10000');
+            walletBalances.set('USDT', paperInitial + totalPnL);
         } else {
             // Live mode: fetch real balances for all relevant currencies
             const positionPairs = Array.from(this.positions.keys());

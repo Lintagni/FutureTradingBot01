@@ -82,6 +82,18 @@ export class WebServer {
             }
         });
 
+        // ── Analytics: long/short breakdown + own-trade learning status ─────
+        this.app.get('/api/analytics', async (_req, res) => {
+            try {
+                const breakdown = await tradeRepository.getLongShortBreakdown('futures');
+                const ownFeatureCount = await tradeRepository.getOwnTradeFeatureCount('futures');
+                const totalClosed = await tradeRepository.getClosedTradeCount('futures');
+                res.json({ ...breakdown, ownFeatureCount, totalClosed });
+            } catch (e: any) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
         // ── Recent closed trades ─────────────────────────────────────────────
         this.app.get('/api/trades', async (req, res) => {
             try {

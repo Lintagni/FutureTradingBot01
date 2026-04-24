@@ -296,6 +296,37 @@
     color: var(--accent);
   }
 
+  /* ── Analytics ───────────────────────────────────── */
+  .analytics-section { display: flex; flex-direction: column; gap: 22px; }
+  .four-col {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 1100px) { .four-col { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px)  { .four-col { grid-template-columns: 1fr; } }
+  .chart-wrap-tall { padding: 16px 20px; height: 260px; position: relative; }
+  .chart-wrap-pie  { padding: 16px 20px; height: 220px; position: relative; }
+  .ai-learning-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+    display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap;
+  }
+  .ai-stat { flex: 1; min-width: 140px; }
+  .ai-stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .ai-stat-val   { font-size: 22px; font-weight: 700; }
+  .ai-stat-val.active   { color: var(--green); }
+  .ai-stat-val.inactive { color: var(--yellow); }
+  .suggestion-list { list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 20px 24px; }
+  .suggestion-list li {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 16px; border-radius: 10px; font-size: 13px; line-height: 1.5;
+    background: var(--surface2); border: 1px solid var(--border);
+  }
+  .sug-icon  { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .sug-title { font-weight: 700; color: var(--text); display: block; margin-bottom: 2px; }
+  .sug-body  { color: var(--muted); }
+
   /* ── Mobile ──────────────────────────────────────── */
   @media (max-width: 720px) {
     .sidebar { display: none; }
@@ -317,6 +348,7 @@
     <button class="nav-item active" onclick="showTab('dashboard')"><span class="icon">📊</span>Dashboard</button>
     <button class="nav-item" onclick="showTab('positions')"><span class="icon">📈</span>Positions</button>
     <button class="nav-item" onclick="showTab('trades')"><span class="icon">🗂</span>Trade History</button>
+    <button class="nav-item" onclick="showTab('analytics')"><span class="icon">🔬</span>Analytics</button>
     <button class="nav-item" onclick="showTab('logs')"><span class="icon">🖥</span>Live Logs</button>
     <button class="nav-item" onclick="showTab('settings')"><span class="icon">⚙️</span>Settings</button>
 
@@ -431,6 +463,113 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- Analytics -->
+    <div class="analytics-section" id="tab-analytics">
+
+      <!-- Summary stat cards: Long vs Short -->
+      <div class="four-col">
+        <div class="stat-card">
+          <div class="stat-label">Long — Total Earned</div>
+          <div class="stat-val pos" id="an-long-earned">—</div>
+          <div class="stat-sub" id="an-long-wins">0 wins</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Long — Total Lost</div>
+          <div class="stat-val neg" id="an-long-lost">—</div>
+          <div class="stat-sub" id="an-long-losses">0 losses</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Short — Total Earned</div>
+          <div class="stat-val pos" id="an-short-earned">—</div>
+          <div class="stat-sub" id="an-short-wins">0 wins</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Short — Total Lost</div>
+          <div class="stat-val neg" id="an-short-lost">—</div>
+          <div class="stat-sub" id="an-short-losses">0 losses</div>
+        </div>
+      </div>
+
+      <!-- Bar charts row -->
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head">
+            <h2>Earnings by Direction</h2>
+            <span class="refresh-tag" id="an-bar-updated">—</span>
+          </div>
+          <div class="chart-wrap-tall">
+            <canvas id="an-bar-earned"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Losses by Direction</h2>
+            <span class="refresh-tag">All closed trades</span>
+          </div>
+          <div class="chart-wrap-tall">
+            <canvas id="an-bar-lost"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pie charts row -->
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head">
+            <h2>% of Profits — Long vs Short</h2>
+            <span class="refresh-tag">Share of total earned</span>
+          </div>
+          <div class="chart-wrap-pie">
+            <canvas id="an-pie-earned"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>% of Losses — Long vs Short</h2>
+            <span class="refresh-tag">Share of total lost</span>
+          </div>
+          <div class="chart-wrap-pie">
+            <canvas id="an-pie-lost"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Learning Status -->
+      <div class="ai-learning-card">
+        <div class="ai-stat">
+          <div class="ai-stat-label">Own-Trade Learning</div>
+          <div class="ai-stat-val" id="an-learning-status">—</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">Trades with stored features</div>
+        </div>
+        <div class="ai-stat">
+          <div class="ai-stat-label">Feature Coverage</div>
+          <div class="ai-stat-val" id="an-feature-pct">—</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">% of closed trades</div>
+        </div>
+        <div class="ai-stat">
+          <div class="ai-stat-label">Total Closed</div>
+          <div class="ai-stat-val" id="an-total-closed">—</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">All time</div>
+        </div>
+        <div style="flex:2;min-width:200px;font-size:12px;color:var(--muted);line-height:1.8;align-self:center">
+          Own-trade learning mixes your bot's actual closed trade outcomes into AI retraining (30% weight).
+          Needs ≥10 closed trades with stored features to activate. Retrains every 12h automatically.
+        </div>
+      </div>
+
+      <!-- Improvement Suggestions -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Improvement Suggestions</h2>
+          <span class="refresh-tag" id="an-suggestions-src">Based on current analytics</span>
+        </div>
+        <ul class="suggestion-list" id="an-suggestions">
+          <li><span class="sug-icon">⏳</span><div><span class="sug-title">Loading analytics…</span></div></li>
+        </ul>
+      </div>
+
     </div>
 
     <!-- Logs -->
@@ -947,16 +1086,167 @@ async function saveMinSize() {
 
 loadConfig();
 
+// ── Analytics ────────────────────────────────────────────────────────────────
+let anBarEarned, anBarLost, anPieEarned, anPieLost;
+
+async function loadAnalytics() {
+  try {
+    const r = await fetch('/api/analytics');
+    if (!r.ok) return;
+    const d = await r.json();
+    renderAnalytics(d);
+  } catch (_) {}
+}
+
+function renderAnalytics(d) {
+  const L = d.long  || { earned:0, lost:0, wins:0, losses:0, total:0 };
+  const S = d.short || { earned:0, lost:0, wins:0, losses:0, total:0 };
+
+  // Summary cards
+  setEl('an-long-earned',  '+$' + L.earned.toFixed(2));
+  setEl('an-long-lost',    '-$' + L.lost.toFixed(2));
+  setEl('an-long-wins',    L.wins + ' wins / ' + L.total + ' trades');
+  setEl('an-long-losses',  L.losses + ' losses / ' + L.total + ' trades');
+  setEl('an-short-earned', '+$' + S.earned.toFixed(2));
+  setEl('an-short-lost',   '-$' + S.lost.toFixed(2));
+  setEl('an-short-wins',   S.wins + ' wins / ' + S.total + ' trades');
+  setEl('an-short-losses', S.losses + ' losses / ' + S.total + ' trades');
+
+  document.getElementById('an-bar-updated').textContent = new Date().toLocaleTimeString();
+
+  const GREEN = 'rgba(34,211,165,.85)';
+  const RED   = 'rgba(244,63,94,.85)';
+  const G_DIM = 'rgba(34,211,165,.35)';
+  const R_DIM = 'rgba(244,63,94,.35)';
+
+  // ── Bar: Earnings ──
+  const earnedData = { labels: ['Long', 'Short'], datasets: [{ data: [L.earned, S.earned], backgroundColor: [GREEN, G_DIM], borderRadius: 6, borderSkipped: false }] };
+  const barOpts = (title, prefix) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => prefix + '$' + Math.abs(ctx.raw).toFixed(2) } } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b' } },
+      y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', callback: v => '$' + Math.abs(v).toFixed(2) } }
+    }
+  });
+
+  if (anBarEarned) { anBarEarned.data = earnedData; anBarEarned.update('none'); }
+  else { anBarEarned = new Chart(document.getElementById('an-bar-earned').getContext('2d'), { type: 'bar', data: earnedData, options: barOpts('Earned: ', '+') }); }
+
+  const lostData = { labels: ['Long', 'Short'], datasets: [{ data: [L.lost, S.lost], backgroundColor: [R_DIM, RED], borderRadius: 6, borderSkipped: false }] };
+  if (anBarLost) { anBarLost.data = lostData; anBarLost.update('none'); }
+  else { anBarLost = new Chart(document.getElementById('an-bar-lost').getContext('2d'), { type: 'bar', data: lostData, options: barOpts('Lost: ', '-') }); }
+
+  // ── Pie: Profit share ──
+  const totalEarned = L.earned + S.earned;
+  const pieEarnedData = {
+    labels: ['Long', 'Short'],
+    datasets: [{ data: totalEarned > 0 ? [L.earned, S.earned] : [1, 1], backgroundColor: [GREEN, G_DIM], borderWidth: 2, borderColor: '#0e1420' }]
+  };
+  const pieOpts = (fmt) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 }, padding: 16 } },
+      tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx) } }
+    }
+  });
+  const pctFmt = (ctx) => {
+    const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+    return sum > 0 ? ((ctx.raw / sum) * 100).toFixed(1) + '%  ($' + ctx.raw.toFixed(2) + ')' : '0%';
+  };
+  if (anPieEarned) { anPieEarned.data = pieEarnedData; anPieEarned.update('none'); }
+  else { anPieEarned = new Chart(document.getElementById('an-pie-earned').getContext('2d'), { type: 'doughnut', data: pieEarnedData, options: pieOpts(pctFmt) }); }
+
+  const totalLost = L.lost + S.lost;
+  const pieLostData = {
+    labels: ['Long', 'Short'],
+    datasets: [{ data: totalLost > 0 ? [L.lost, S.lost] : [1, 1], backgroundColor: [R_DIM, RED], borderWidth: 2, borderColor: '#0e1420' }]
+  };
+  if (anPieLost) { anPieLost.data = pieLostData; anPieLost.update('none'); }
+  else { anPieLost = new Chart(document.getElementById('an-pie-lost').getContext('2d'), { type: 'doughnut', data: pieLostData, options: pieOpts(pctFmt) }); }
+
+  // ── AI Learning status ──
+  const ownCount = d.ownFeatureCount ?? 0;
+  const totalClosed = d.totalClosed ?? 0;
+  const coveragePct = totalClosed > 0 ? ((ownCount / totalClosed) * 100).toFixed(0) : 0;
+  const isActive = ownCount >= 10;
+  const statusEl = document.getElementById('an-learning-status');
+  statusEl.textContent = ownCount + ' trades';
+  statusEl.className = 'ai-stat-val ' + (isActive ? 'active' : 'inactive');
+  setEl('an-feature-pct', coveragePct + '%');
+  setEl('an-total-closed', totalClosed);
+
+  // ── Suggestions ──
+  renderSuggestions(L, S, ownCount, totalClosed);
+}
+
+function renderSuggestions(L, S, ownCount, totalClosed) {
+  const suggestions = [];
+
+  const longWR  = L.total > 0 ? (L.wins / L.total) * 100 : null;
+  const shortWR = S.total > 0 ? (S.wins / S.total) * 100 : null;
+  const longNet  = L.earned - L.lost;
+  const shortNet = S.earned - S.lost;
+
+  // Not enough data yet
+  if (totalClosed < 10) {
+    suggestions.push({ icon: '⏳', title: 'Gather more trades first', body: `Only ${totalClosed} closed trades. Need at least 10–20 to draw meaningful conclusions from analytics.` });
+  }
+
+  // Short losing money
+  if (shortNet < -5 && S.total >= 3) {
+    suggestions.push({ icon: '📉', title: 'Shorts are net negative', body: `Short trades lost $${Math.abs(shortNet).toFixed(2)} net. Consider raising the quality score threshold for SHORT entries, or temporarily disable shorts if the market is in a strong uptrend.` });
+  }
+
+  // Short win rate very low
+  if (shortWR !== null && shortWR < 35 && S.total >= 5) {
+    suggestions.push({ icon: '🔻', title: 'Short win rate is low (' + shortWR.toFixed(0) + '%)', body: 'The 4h HTF filter should block most counter-trend shorts. Check that 4h EMA alignment is working — if HTF data returns null, the bot awards neutral points and may enter bad shorts.' });
+  }
+
+  // Long also losing
+  if (longNet < -5 && L.total >= 3) {
+    suggestions.push({ icon: '📊', title: 'Longs are also net negative', body: `Long trades lost $${Math.abs(longNet).toFixed(2)} net. Check ATR TP multiplier (4× ATR is a high bar). Partial TP at ATR×2 should lock in some gains — verify it fired in the trade log.` });
+  }
+
+  // Win rate high on one side, scale up
+  if (longWR !== null && longWR >= 60 && longNet > 0) {
+    suggestions.push({ icon: '🚀', title: 'Longs performing well (' + longWR.toFixed(0) + '% WR)', body: 'Long edge looks solid. Once you have 30 trades, consider slightly raising position size % for longs or lowering the confidence threshold for LONG-only if the market is trending up.' });
+  }
+
+  // Own-trade learning not active
+  if (ownCount < 10) {
+    suggestions.push({ icon: '🧠', title: 'Own-trade learning not yet active', body: `Need ≥10 closed trades with stored features (have ${ownCount}). Once active, the AI retrains on what YOUR bot actually wins/loses at — this usually improves accuracy significantly.` });
+  } else {
+    suggestions.push({ icon: '✅', title: 'Own-trade learning is active', body: `${ownCount} of ${totalClosed} closed trades have stored features and are mixed into AI retraining at 30% weight. Model improves automatically every 12h.` });
+  }
+
+  // General suggestions always shown
+  suggestions.push({ icon: '💡', title: 'Improve: add RSI divergence check', body: 'Before entering a SHORT, confirm RSI is making lower highs while price makes higher highs (bearish divergence). Reduces false short entries in ranging markets.' });
+  suggestions.push({ icon: '💡', title: 'Improve: tighten funding filter for shorts', body: 'If funding rate is positive (longs paying shorts), that means a short squeeze is more likely. Consider only entering shorts when funding < 0.' });
+  suggestions.push({ icon: '💡', title: 'Improve: use volume profile for entry timing', body: 'Enter only when volume is above 1.5× average AND the last candle closes strongly (close near high for longs, near low for shorts). This reduces entering on fakeouts.' });
+
+  const ul = document.getElementById('an-suggestions');
+  ul.innerHTML = suggestions.map(s =>
+    `<li><span class="sug-icon">${escHtml(s.icon)}</span><div><span class="sug-title">${escHtml(s.title)}</span><span class="sug-body">${escHtml(s.body)}</span></div></li>`
+  ).join('');
+  setEl('an-suggestions-src', 'Updated ' + new Date().toLocaleTimeString());
+}
+
+// Auto-load analytics on startup (for when page opens on analytics tab)
+loadAnalytics();
+
 // ── Tab nav (sidebar handles visibility via CSS, all sections always rendered) ──
 function showTab(tab) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   event.currentTarget.classList.add('active');
-  const titles = { dashboard: 'Dashboard', positions: 'Open Positions', trades: 'Trade History', logs: 'Live Logs', settings: 'Settings' };
+  const titles = { dashboard: 'Dashboard', positions: 'Open Positions', trades: 'Trade History', analytics: 'Analytics', logs: 'Live Logs', settings: 'Settings' };
   document.getElementById('page-title').textContent = titles[tab] || tab;
   // Scroll the relevant card into view
-  const map = { positions: 'tab-positions', trades: 'tab-trades', logs: 'tab-logs', settings: 'tab-settings' };
+  const map = { positions: 'tab-positions', trades: 'tab-trades', analytics: 'tab-analytics', logs: 'tab-logs', settings: 'tab-settings' };
   if (map[tab]) document.getElementById(map[tab]).scrollIntoView({ behavior: 'smooth', block: 'start' });
   else window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Refresh analytics when tab opened
+  if (tab === 'analytics') loadAnalytics();
 }
 </script>
 </body>
