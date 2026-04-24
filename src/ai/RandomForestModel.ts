@@ -28,8 +28,8 @@ export class RandomForestModel {
         const options = {
             seed: 42,
             maxFeatures: 0.8,
-            replacement: true,
-            nEstimators: 10 // Reduced from 25 — 5000+ samples × 25 trees was 13+ min in Node.js
+            replacement: false, // true triggers OOB computation; mode([]) throws when a sample is never OOB
+            nEstimators: 15,
         };
 
         this.model = new RFClassifier(options);
