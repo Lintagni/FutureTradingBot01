@@ -278,7 +278,6 @@ export class AutoRetrainer {
 
             // Final sanity check — reject any sample that isn't exactly 9 finite features.
             const EXPECTED_FEAT = 9;
-            const preSanitize = balancedFeatures.length;
             const sanitized = balancedFeatures
                 .map((f, i) => ({ f, l: balancedLabels[i] }))
                 .filter(({ f }) => Array.isArray(f) && f.length === EXPECTED_FEAT && f.every(v => typeof v === 'number' && isFinite(v)));
