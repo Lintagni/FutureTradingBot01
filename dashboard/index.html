@@ -1,1253 +1,1098 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Futures Trading Bot</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FUTURES BOT — Dashboard</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
 <style>
-  :root {
-    --bg: #080c14;
-    --surface: #0e1420;
-    --surface2: #131a27;
-    --border: rgba(255,255,255,0.07);
-    --accent: #4f8eff;
-    --accent-dim: rgba(79,142,255,0.15);
-    --green: #22d3a5;
-    --green-dim: rgba(34,211,165,0.12);
-    --red: #f43f5e;
-    --red-dim: rgba(244,63,94,0.12);
-    --yellow: #fbbf24;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --radius: 14px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    font-size: 14px;
-  }
-
-  /* ── Layout ──────────────────────────────────────── */
-  .shell { display: flex; min-height: 100vh; }
-
-  /* Sidebar */
-  .sidebar {
-    width: 220px; flex-shrink: 0;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    padding: 24px 0;
-  }
-  .brand {
-    padding: 0 20px 24px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 16px;
-  }
-  .brand h1 { font-size: 15px; font-weight: 700; letter-spacing: .04em; color: var(--text); }
-  .brand span { font-size: 11px; color: var(--muted); }
-  .nav-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 20px; cursor: pointer; border-radius: 0;
-    font-size: 13px; color: var(--muted);
-    transition: color .15s, background .15s;
-    border: none; background: none; width: 100%; text-align: left;
-  }
-  .nav-item:hover { color: var(--text); background: var(--accent-dim); }
-  .nav-item.active { color: var(--accent); background: var(--accent-dim); }
-  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
-
-  .sidebar-footer {
-    margin-top: auto; padding: 16px 20px;
-    border-top: 1px solid var(--border);
-  }
-  .conn-indicator {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 12px; color: var(--muted);
-  }
-  .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--muted); flex-shrink: 0;
-  }
-  .dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s infinite; }
-  .dot.offline { background: var(--red); }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-  /* Main */
-  .main { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 22px; }
-
-  /* ── Top bar ─────────────────────────────────────── */
-  .topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 12px;
-  }
-  .topbar-title { font-size: 20px; font-weight: 700; }
-  .topbar-meta { display: flex; align-items: center; gap: 12px; }
-  .badge {
-    padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
-    letter-spacing: .06em; text-transform: uppercase;
-  }
-  .badge.paper { background: rgba(251,191,36,.15); color: var(--yellow); border: 1px solid rgba(251,191,36,.25); }
-  .badge.live  { background: rgba(244,63,94,.15); color: var(--red); border: 1px solid rgba(244,63,94,.25); }
-  .badge.running { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,211,165,.25); }
-  .badge.stopped { background: rgba(100,116,139,.12); color: var(--muted); border: 1px solid var(--border); }
-
-  .control-btns { display: flex; gap: 8px; }
-  .btn {
-    padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
-    cursor: pointer; border: none; transition: opacity .15s, transform .1s;
-  }
-  .btn:active { transform: scale(.97); }
-  .btn.start { background: var(--green); color: #000; }
-  .btn.stop  { background: var(--red);   color: #fff; }
-  .btn:disabled { opacity: .4; cursor: default; }
-
-  /* ── Stat cards ──────────────────────────────────── */
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 14px;
-  }
-  .stat-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 18px;
-  }
-  .stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-  .stat-val   { font-size: 24px; font-weight: 700; line-height: 1; }
-  .stat-sub   { font-size: 12px; color: var(--muted); margin-top: 6px; }
-  .stat-val.pos { color: var(--green); }
-  .stat-val.neg { color: var(--red); }
-
-  /* ── Two-column row ──────────────────────────────── */
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
-
-  /* ── Card shell ──────────────────────────────────── */
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); overflow: hidden;
-  }
-  .card-head {
-    padding: 16px 20px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .card-head h2 { font-size: 14px; font-weight: 700; }
-  .card-body { padding: 0; }
-
-  /* ── Table ───────────────────────────────────────── */
-  table { width: 100%; border-collapse: collapse; }
-  thead th {
-    padding: 11px 16px; text-align: left;
-    font-size: 11px; font-weight: 600; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .05em;
-    background: var(--surface2); border-bottom: 1px solid var(--border);
-  }
-  tbody td { padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: var(--surface2); }
-  .empty-row td { text-align: center; color: var(--muted); padding: 40px; }
-
-  .tag {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 700;
-  }
-  .tag.long  { background: var(--green-dim); color: var(--green); }
-  .tag.short { background: var(--red-dim);   color: var(--red); }
-  .tag.buy   { background: var(--green-dim); color: var(--green); }
-  .tag.sell  { background: var(--red-dim);   color: var(--red); }
-
-  .pnl { font-weight: 700; }
-  .pnl.pos { color: var(--green); }
-  .pnl.neg { color: var(--red); }
-
-  /* ── Chart card ──────────────────────────────────── */
-  .chart-wrap { padding: 16px 20px; height: 200px; position: relative; }
-
-  /* ── Log ─────────────────────────────────────────── */
-  .log-wrap {
-    height: 260px; overflow-y: auto;
-    font-family: 'Consolas', 'Monaco', monospace; font-size: 12px;
-    background: #050810; padding: 14px 16px; line-height: 1.7;
-  }
-  .log-wrap::-webkit-scrollbar { width: 4px; }
-  .log-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-  .log-line { display: flex; gap: 10px; }
-  .log-time { color: var(--muted); flex-shrink: 0; }
-  .log-lvl  { flex-shrink: 0; font-weight: 700; width: 50px; }
-  .log-lvl.info  { color: var(--accent); }
-  .log-lvl.warn  { color: var(--yellow); }
-  .log-lvl.error { color: var(--red); }
-  .log-msg  { color: #94a3b8; word-break: break-all; }
-
-  /* ── Refresh tag ─────────────────────────────────── */
-  .refresh-tag { font-size: 11px; color: var(--muted); }
-
-  /* ── Live refresh timer in topbar ───────────────── */
-  .refresh-timer {
-    display: flex; align-items: center; gap: 5px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 10px;
-    font-size: 12px;
-    color: var(--muted);
-    cursor: default;
-  }
-  .refresh-timer.fresh { color: var(--green); border-color: rgba(34,211,165,0.3); }
-  .refresh-timer.stale { color: var(--yellow); border-color: rgba(251,191,36,0.3); }
-  .refresh-timer.dead  { color: var(--red);    border-color: rgba(244,63,94,0.3); }
-  .refresh-icon { font-size: 11px; }
-
-  /* ── Settings card ──────────────────────────────── */
-  .settings-body { padding: 20px 24px; }
-  .settings-section-title {
-    font-size: 11px; font-weight: 700; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .07em;
-    margin: 20px 0 10px; padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-  }
-  .settings-section-title:first-child { margin-top: 0; }
-  .config-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 10px 24px;
-  }
-  @media (max-width: 640px) { .config-grid { grid-template-columns: 1fr; } }
-  .config-row {
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 13px; padding: 6px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
-  .config-key { color: var(--muted); }
-  .config-val { font-weight: 600; color: var(--text); }
-  .config-val.highlight { color: var(--accent); }
-  .settings-edit-row {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin-top: 6px;
-  }
-  .settings-input {
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text); padding: 7px 12px; border-radius: 8px;
-    width: 110px; font-size: 13px; outline: none;
-    transition: border-color .15s;
-  }
-  .settings-input:focus { border-color: var(--accent); }
-  .settings-hint {
-    font-size: 11px; color: var(--muted); line-height: 1.8;
-    background: var(--surface2); border-radius: 8px; padding: 12px 16px;
-    margin-top: 12px;
-  }
-  .settings-hint strong { color: var(--text); }
-
-  /* ── Live Readiness card ─────────────────────────── */
-  .readiness-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 22px 24px;
-  }
-  .readiness-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 18px;
-  }
-  .readiness-header h2 { font-size: 14px; font-weight: 700; }
-  .readiness-score-wrap {
-    display: flex; align-items: center; gap: 18px; margin-bottom: 16px;
-  }
-  .readiness-circle {
-    width: 72px; height: 72px; border-radius: 50%;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 800; flex-shrink: 0;
-    border: 3px solid var(--border);
-  }
-  .readiness-circle.low    { border-color: var(--red);    color: var(--red); }
-  .readiness-circle.mid    { border-color: var(--yellow); color: var(--yellow); }
-  .readiness-circle.high   { border-color: #a78bfa;       color: #a78bfa; }
-  .readiness-circle.ready  { border-color: var(--green);  color: var(--green); }
-  .readiness-label {
-    font-size: 15px; font-weight: 700;
-  }
-  .readiness-label.low   { color: var(--red); }
-  .readiness-label.mid   { color: var(--yellow); }
-  .readiness-label.high  { color: #a78bfa; }
-  .readiness-label.ready { color: var(--green); }
-  .readiness-list {
-    list-style: none; display: flex; flex-direction: column; gap: 8px;
-    margin-bottom: 14px;
-  }
-  .readiness-list li {
-    display: flex; align-items: baseline; gap: 8px;
-    font-size: 13px; color: var(--text);
-  }
-  .readiness-list li .rl-icon { font-size: 13px; flex-shrink: 0; }
-  .readiness-list li .rl-bar-wrap {
-    flex: 1; height: 4px; background: var(--border); border-radius: 2px;
-    overflow: hidden; margin-left: 4px;
-  }
-  .readiness-list li .rl-bar { height: 100%; border-radius: 2px; transition: width .4s; }
-  .readiness-list li.pass .rl-bar { background: var(--green); }
-  .readiness-list li.fail .rl-bar { background: var(--red); }
-  .readiness-hint {
-    font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6;
-  }
-  .readiness-hint code {
-    font-family: 'Consolas', monospace; font-size: 11px;
-    background: var(--surface2); padding: 1px 5px; border-radius: 4px;
-    color: var(--accent);
-  }
-
-  /* ── Analytics ───────────────────────────────────── */
-  .analytics-section { display: flex; flex-direction: column; gap: 22px; }
-  .four-col {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-  }
-  @media (max-width: 1100px) { .four-col { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 600px)  { .four-col { grid-template-columns: 1fr; } }
-  .chart-wrap-tall { padding: 16px 20px; height: 260px; position: relative; }
-  .chart-wrap-pie  { padding: 16px 20px; height: 220px; position: relative; }
-  .ai-learning-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 20px 24px;
-    display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap;
-  }
-  .ai-stat { flex: 1; min-width: 140px; }
-  .ai-stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-  .ai-stat-val   { font-size: 22px; font-weight: 700; }
-  .ai-stat-val.active   { color: var(--green); }
-  .ai-stat-val.inactive { color: var(--yellow); }
-  .suggestion-list { list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 20px 24px; }
-  .suggestion-list li {
-    display: flex; gap: 12px; align-items: flex-start;
-    padding: 12px 16px; border-radius: 10px; font-size: 13px; line-height: 1.5;
-    background: var(--surface2); border: 1px solid var(--border);
-  }
-  .sug-icon  { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-  .sug-title { font-weight: 700; color: var(--text); display: block; margin-bottom: 2px; }
-  .sug-body  { color: var(--muted); }
-
-  /* ── Mobile ──────────────────────────────────────── */
-  @media (max-width: 720px) {
-    .sidebar { display: none; }
-    .main { padding: 16px; }
-    .stats-row { grid-template-columns: 1fr 1fr; }
-    thead th:nth-child(n+4), tbody td:nth-child(n+4) { display: none; }
-  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; overflow: hidden; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes fadeUp { from{transform:translateY(8px);opacity:0} to{transform:translateY(0);opacity:1} }
+  @keyframes slideInRight { from{transform:translateX(100%)} to{transform:translateX(0)} }
+  @keyframes blink { 0%,49%{opacity:1} 50%,99%{opacity:0} }
+  @keyframes shimmer { 0%{opacity:0.6} 50%{opacity:1} 100%{opacity:0.6} }
+  .animate-in { animation: fadeUp 0.28s ease both; }
+  .animate-in:nth-child(1){animation-delay:0ms}.animate-in:nth-child(2){animation-delay:40ms}
+  .animate-in:nth-child(3){animation-delay:80ms}.animate-in:nth-child(4){animation-delay:120ms}
+  .animate-in:nth-child(5){animation-delay:160ms}.animate-in:nth-child(6){animation-delay:200ms}
+  .cursor-blink { animation: blink 1s step-end infinite; }
+  .drawer-enter { animation: slideInRight 0.25s cubic-bezier(0.16,1,0.3,1) both; }
+  .live-shimmer { animation: shimmer 2s ease-in-out infinite; }
 </style>
 </head>
 <body>
-<div class="shell">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-  <!-- Sidebar -->
-  <nav class="sidebar">
-    <div class="brand">
-      <h1>FUTURES BOT</h1>
-      <span>Bybit Testnet</span>
-    </div>
-    <button class="nav-item active" onclick="showTab('dashboard')"><span class="icon">📊</span>Dashboard</button>
-    <button class="nav-item" onclick="showTab('positions')"><span class="icon">📈</span>Positions</button>
-    <button class="nav-item" onclick="showTab('trades')"><span class="icon">🗂</span>Trade History</button>
-    <button class="nav-item" onclick="showTab('analytics')"><span class="icon">🔬</span>Analytics</button>
-    <button class="nav-item" onclick="showTab('logs')"><span class="icon">🖥</span>Live Logs</button>
-    <button class="nav-item" onclick="showTab('settings')"><span class="icon">⚙️</span>Settings</button>
+// ─── THEMES ──────────────────────────────────────────────────────────────────
+const THEMES = {
+  slate: {
+    name:'Slate Pro', bg:'#0b0f1a', sidebar:'#0d1525', sidebarBorder:'#1a2744',
+    card:'#111c2e', cardHover:'#152038', border:'#1e2d4a',
+    accent:'#00c9b1', accentDim:'rgba(0,201,177,0.12)', accent2:'#f59e0b', accent2Dim:'rgba(245,158,11,0.12)',
+    text:'#e8f0fe', textMuted:'#5a7399', textDim:'#8ca4c4',
+    green:'#10b981', greenDim:'rgba(16,185,129,0.12)', red:'#f43f5e', redDim:'rgba(244,63,94,0.12)',
+    navActive:'linear-gradient(90deg,rgba(0,201,177,0.18) 0%,rgba(0,201,177,0.04) 100%)',
+  },
+  terminal: {
+    name:'Terminal', bg:'#030303', sidebar:'#060606', sidebarBorder:'#111',
+    card:'#0a0a0a', cardHover:'#111', border:'#1a1a1a',
+    accent:'#00ff88', accentDim:'rgba(0,255,136,0.08)', accent2:'#00d4ff', accent2Dim:'rgba(0,212,255,0.08)',
+    text:'#cccccc', textMuted:'#444', textDim:'#777',
+    green:'#00ff88', greenDim:'rgba(0,255,136,0.08)', red:'#ff3355', redDim:'rgba(255,51,85,0.08)',
+    navActive:'linear-gradient(90deg,rgba(0,255,136,0.14) 0%,rgba(0,255,136,0.02) 100%)',
+  },
+  carbon: {
+    name:'Carbon', bg:'#0a0a10', sidebar:'#0d0d16', sidebarBorder:'#1c1c2e',
+    card:'#11111e', cardHover:'#16162a', border:'#1e1e35',
+    accent:'#8b5cf6', accentDim:'rgba(139,92,246,0.12)', accent2:'#ec4899', accent2Dim:'rgba(236,72,153,0.12)',
+    text:'#e2e0f0', textMuted:'#4a4868', textDim:'#7b789a',
+    green:'#34d399', greenDim:'rgba(52,211,153,0.12)', red:'#fb7185', redDim:'rgba(251,113,133,0.12)',
+    navActive:'linear-gradient(90deg,rgba(139,92,246,0.18) 0%,rgba(139,92,246,0.04) 100%)',
+  }
+};
 
-    <div class="sidebar-footer">
-      <div class="conn-indicator">
-        <div class="dot" id="ws-dot"></div>
-        <span id="ws-label">Connecting…</span>
-      </div>
-      <div style="margin-top:8px;font-size:11px;color:var(--muted)" id="last-update">—</div>
-    </div>
-  </nav>
+// ─── LIVE DATA ────────────────────────────────────────────────────────────────
+function normSym(s) { return s ? s.split('/')[0] + 'USDT' : ''; }
+function fmtDur(a, b) { const ms=new Date(b)-new Date(a),h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000); return h>0?`${h}h ${m}m`:`${m}m`; }
+function mapTrade(t) {
+  return {
+    id: t.id,
+    time: new Date(t.entryTime).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),
+    symbol: normSym(t.symbol),
+    side: t.side==='buy'?'Long':'Short',
+    entry: t.entryPrice||t.price||0,
+    exit: t.exitPrice||null,
+    pnl: t.realizedPnl||0,
+    duration: t.exitTime ? fmtDur(t.entryTime,t.exitTime) : 'Open',
+    leverage: (t.leverage||3)+'x',
+    confidence: Math.round((t.confidence||0.65)*100),
+    reason: t.signal||t.strategy||'',
+    status: t.status,
+  };
+}
+function mapPosition(pos, leverage) {
+  return {
+    symbol: normSym(pos.symbol),
+    dir: pos.side==='buy'?'Long':'Short',
+    entry: pos.entryPrice||0,
+    curPrice: pos.currentPrice||0,
+    size: '—',
+    pnl: pos.unrealizedPnl||0,
+    pct: (pos.pnlPct||0)*100,
+    liq: '—',
+    leverage: (leverage||3)+'x',
+    opened: '—',
+    margin: '—',
+  };
+}
 
-  <!-- Main -->
-  <main class="main">
+function useLiveData() {
+  const [status, setStatus] = useState(null);
+  const [trades, setTrades] = useState([]);
+  const [liveLogs, setLiveLogs] = useState([]);
+  const [wsConnected, setWsConnected] = useState(false);
 
-    <!-- Top bar -->
-    <div class="topbar">
-      <div class="topbar-title" id="page-title">Dashboard <span id="bot-version" style="font-size:12px;font-weight:400;opacity:0.5;margin-left:6px;">v2.1.0</span></div>
-      <div class="topbar-meta">
-        <span class="badge paper" id="mode-badge">PAPER</span>
-        <span class="badge stopped" id="status-badge">STOPPED</span>
-        <div class="refresh-timer" id="refresh-timer" title="Time since last data update">
-          <span class="refresh-icon">🔄</span>
-          <span id="refresh-ago">—</span>
-        </div>
-        <div class="control-btns">
-          <button class="btn start" id="btn-start" onclick="botStart()">▶ Start</button>
-          <button class="btn stop"  id="btn-stop"  onclick="botStop()" disabled>■ Stop</button>
-        </div>
-      </div>
-    </div>
+  // WebSocket
+  useEffect(() => {
+    const proto = location.protocol==='https:'?'wss':'ws';
+    let ws, pingTimer, reconnectTimer;
+    function connect() {
+      ws = new WebSocket(`${proto}://${location.host}`);
+      ws.onopen = () => { setWsConnected(true); clearTimeout(reconnectTimer); };
+      ws.onclose = () => { setWsConnected(false); clearInterval(pingTimer); reconnectTimer = setTimeout(connect, 4000); };
+      ws.onerror = () => {};
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type==='state') setStatus(msg.data);
+          if (msg.type==='log') {
+            const lvl = msg.data.level||'info';
+            const type = lvl==='error'?'system':lvl==='warn'?'system':msg.data.msg?.includes('opened')||msg.data.msg?.includes('closed')?'trade':lvl==='info'&&msg.data.msg?.includes('AI')?'ai':'info';
+            setLiveLogs(prev => [{t:new Date().toLocaleTimeString('en-US',{hour12:false}),type,msg:msg.data.msg},...prev].slice(0,150));
+          }
+        } catch(_) {}
+      };
+      pingTimer = setInterval(() => { if(ws&&ws.readyState===WebSocket.OPEN) ws.ping&&ws.ping(); }, 10000);
+    }
+    connect();
+    return () => { clearTimeout(reconnectTimer); clearInterval(pingTimer); try{ws&&ws.close();}catch(_){} };
+  }, []);
 
-    <!-- Stats -->
-    <div class="stats-row" id="tab-dashboard">
-      <div class="stat-card">
-        <div class="stat-label">USDT Balance</div>
-        <div class="stat-val" id="s-balance">—</div>
-        <div class="stat-sub">Available</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Daily P&amp;L</div>
-        <div class="stat-val" id="s-daily">$0.00</div>
-        <div class="stat-sub" id="s-daily-sub">Today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Total P&amp;L</div>
-        <div class="stat-val" id="s-total">$0.00</div>
-        <div class="stat-sub">All time</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Win Rate</div>
-        <div class="stat-val" id="s-winrate">—</div>
-        <div class="stat-sub" id="s-winrate-sub">Lifetime</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Open Positions</div>
-        <div class="stat-val" id="s-open">0</div>
-        <div class="stat-sub" id="s-leverage-info">3× isolated</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Monitored Pairs</div>
-        <div class="stat-val" id="s-pairs">0</div>
-        <div class="stat-sub">Active pairs</div>
-      </div>
-    </div>
+  // REST status fallback
+  useEffect(() => {
+    async function poll() { try { const r=await fetch('/api/status'); if(r.ok) setStatus(await r.json()); } catch(_){} }
+    poll();
+    const id = setInterval(poll, 8000);
+    return () => clearInterval(id);
+  }, []);
 
-    <!-- Chart + Positions (two-col) -->
-    <div class="two-col">
-      <!-- P&L Chart -->
-      <div class="card">
-        <div class="card-head">
-          <h2>P&amp;L History (last 20 trades)</h2>
-          <span class="refresh-tag" id="chart-updated">—</span>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="pnl-chart"></canvas>
-        </div>
-      </div>
+  // Fetch trades
+  useEffect(() => {
+    async function fetchTrades() { try { const r=await fetch('/api/trades?limit=100'); if(r.ok) setTrades((await r.json()).map(mapTrade)); } catch(_){} }
+    fetchTrades();
+    const id = setInterval(fetchTrades, 15000);
+    return () => clearInterval(id);
+  }, []);
 
-      <!-- Open Positions -->
-      <div class="card" id="tab-positions">
-        <div class="card-head">
-          <h2>Open Positions</h2>
-          <span class="refresh-tag">Live</span>
-        </div>
-        <div class="card-body">
-          <table>
-            <thead><tr>
-              <th>Symbol</th><th>Dir</th><th>Entry</th><th>Cur Price</th><th>P&amp;L</th>
-            </tr></thead>
-            <tbody id="pos-tbody">
-              <tr class="empty-row"><td colspan="5">No open positions</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+  return { status, trades, liveLogs, wsConnected };
+}
 
-    <!-- Trade History -->
-    <div class="card" id="tab-trades">
-      <div class="card-head">
-        <h2>Recent Trades</h2>
-        <span class="refresh-tag" id="trades-updated">—</span>
-      </div>
-      <div class="card-body">
-        <table>
-          <thead><tr>
-            <th>Time</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&amp;L</th>
-          </tr></thead>
-          <tbody id="trades-tbody">
-            <tr class="empty-row"><td colspan="6">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+// ─── HOOKS ────────────────────────────────────────────────────────────────────
+function useAnimatedNumber(target, decimals=2, duration=800) {
+  const [display, setDisplay] = useState(target);
+  const startRef = useRef(target);
+  const frameRef = useRef(null);
+  useEffect(() => {
+    const start = startRef.current;
+    const diff = target - start;
+    if (Math.abs(diff) < 0.01) return;
+    const t0 = performance.now();
+    const tick = (now) => {
+      const p = Math.min(1, (now-t0)/duration);
+      const ease = 1-Math.pow(1-p,3);
+      setDisplay(+(start + diff*ease).toFixed(decimals));
+      if (p < 1) frameRef.current = requestAnimationFrame(tick);
+      else startRef.current = target;
+    };
+    frameRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [target]);
+  return display;
+}
 
-    <!-- Analytics -->
-    <div class="analytics-section" id="tab-analytics">
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function fmt(n,dec=2) { return (n>=0?'+':'-')+'$'+Math.abs(n).toFixed(dec); }
+function fmtPct(n) { return (n>=0?'+':'')+n.toFixed(2)+'%'; }
+function numFmt(n) { return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
-      <!-- Summary stat cards: Long vs Short -->
-      <div class="four-col">
-        <div class="stat-card">
-          <div class="stat-label">Long — Total Earned</div>
-          <div class="stat-val pos" id="an-long-earned">—</div>
-          <div class="stat-sub" id="an-long-wins">0 wins</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Long — Total Lost</div>
-          <div class="stat-val neg" id="an-long-lost">—</div>
-          <div class="stat-sub" id="an-long-losses">0 losses</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Short — Total Earned</div>
-          <div class="stat-val pos" id="an-short-earned">—</div>
-          <div class="stat-sub" id="an-short-wins">0 wins</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Short — Total Lost</div>
-          <div class="stat-val neg" id="an-short-lost">—</div>
-          <div class="stat-sub" id="an-short-losses">0 losses</div>
-        </div>
-      </div>
+// ─── PRIMITIVES ──────────────────────────────────────────────────────────────
+function StatusDot({active,t}) {
+  return <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:active?t.green:t.textMuted,boxShadow:active?`0 0 6px ${t.green}`:'none',animation:active?'pulse 2s infinite':'none',flexShrink:0}}/>;
+}
 
-      <!-- Bar charts row -->
-      <div class="two-col">
-        <div class="card">
-          <div class="card-head">
-            <h2>Earnings by Direction</h2>
-            <span class="refresh-tag" id="an-bar-updated">—</span>
-          </div>
-          <div class="chart-wrap-tall">
-            <canvas id="an-bar-earned"></canvas>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-head">
-            <h2>Losses by Direction</h2>
-            <span class="refresh-tag">All closed trades</span>
-          </div>
-          <div class="chart-wrap-tall">
-            <canvas id="an-bar-lost"></canvas>
-          </div>
-        </div>
-      </div>
+function Badge({children,color,t}) {
+  const c = color==='green'?t.green:color==='red'?t.red:t.accent;
+  return <span style={{fontSize:10,fontWeight:700,letterSpacing:'0.08em',padding:'2px 7px',borderRadius:3,background:c+'1a',color:c,border:`1px solid ${c}33`,textTransform:'uppercase'}}>{children}</span>;
+}
 
-      <!-- Pie charts row -->
-      <div class="two-col">
-        <div class="card">
-          <div class="card-head">
-            <h2>% of Profits — Long vs Short</h2>
-            <span class="refresh-tag">Share of total earned</span>
-          </div>
-          <div class="chart-wrap-pie">
-            <canvas id="an-pie-earned"></canvas>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-head">
-            <h2>% of Losses — Long vs Short</h2>
-            <span class="refresh-tag">Share of total lost</span>
-          </div>
-          <div class="chart-wrap-pie">
-            <canvas id="an-pie-lost"></canvas>
-          </div>
-        </div>
-      </div>
+function Sparkline({data,color,width=80,height=28}) {
+  if (!data||data.length<2) return null;
+  const min=Math.min(...data), max=Math.max(...data), range=max-min||1;
+  const pts = data.map((v,i)=>[
+    (i/(data.length-1))*width,
+    height - ((v-min)/range)*height*0.85 - height*0.075
+  ]);
+  const d = pts.map((p,i)=>i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`).join(' ');
+  const fill = `${d} L${width},${height} L0,${height} Z`;
+  return (
+    <svg width={width} height={height} style={{display:'block'}}>
+      <defs>
+        <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3"/>
+          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d={fill} fill={`url(#sg-${color.replace('#','')})`}/>
+      <path d={d} stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
 
-      <!-- AI Learning Status -->
-      <div class="ai-learning-card">
-        <div class="ai-stat">
-          <div class="ai-stat-label">Own-Trade Learning</div>
-          <div class="ai-stat-val" id="an-learning-status">—</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">Trades with stored features</div>
-        </div>
-        <div class="ai-stat">
-          <div class="ai-stat-label">Feature Coverage</div>
-          <div class="ai-stat-val" id="an-feature-pct">—</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">% of closed trades</div>
-        </div>
-        <div class="ai-stat">
-          <div class="ai-stat-label">Total Closed</div>
-          <div class="ai-stat-val" id="an-total-closed">—</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">All time</div>
-        </div>
-        <div style="flex:2;min-width:200px;font-size:12px;color:var(--muted);line-height:1.8;align-self:center">
-          Own-trade learning mixes your bot's actual closed trade outcomes into AI retraining (30% weight).
-          Needs ≥10 closed trades with stored features to activate. Retrains every 12h automatically.
-        </div>
-      </div>
-
-      <!-- Improvement Suggestions -->
-      <div class="card">
-        <div class="card-head">
-          <h2>Improvement Suggestions</h2>
-          <span class="refresh-tag" id="an-suggestions-src">Based on current analytics</span>
-        </div>
-        <ul class="suggestion-list" id="an-suggestions">
-          <li><span class="sug-icon">⏳</span><div><span class="sug-title">Loading analytics…</span></div></li>
-        </ul>
-      </div>
-
-    </div>
-
-    <!-- Logs -->
-    <div class="card" id="tab-logs">
-      <div class="card-head">
-        <h2>Live Activity Log</h2>
-        <span class="refresh-tag" id="log-count">0 entries</span>
-      </div>
-      <div class="log-wrap" id="log-wrap"></div>
-    </div>
-
-    <!-- Settings -->
-    <div class="card" id="tab-settings">
-      <div class="card-head">
-        <h2>⚙️ Settings &amp; Configuration</h2>
-        <span class="refresh-tag" id="config-loaded">Loading…</span>
-      </div>
-      <div class="settings-body">
-
-        <!-- Risk Management -->
-        <div class="settings-section-title">Risk Management</div>
-        <div class="config-grid" id="cfg-risk"></div>
-
-        <!-- Futures -->
-        <div class="settings-section-title">Futures</div>
-        <div class="config-grid" id="cfg-futures"></div>
-
-        <!-- Strategy -->
-        <div class="settings-section-title">Strategy</div>
-        <div class="config-grid" id="cfg-strategy"></div>
-
-        <!-- Market Scanner -->
-        <div class="settings-section-title">Market Scanner</div>
-        <div class="config-grid" id="cfg-scanner"></div>
-
-        <!-- AI -->
-        <div class="settings-section-title">AI Model</div>
-        <div class="config-grid" id="cfg-ai"></div>
-
-        <!-- Editable settings -->
-        <div class="settings-section-title">Adjust Live Settings</div>
+function StatCard({label,value,sub,delta,accent,t,spark,sparkColor}) {
+  const pos = delta!==undefined ? delta>=0 : null;
+  const col = accent ? (pos===false?t.red:pos===true?t.green:t.text) : t.text;
+  return (
+    <div className="animate-in" style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'16px 18px',display:'flex',flexDirection:'column',gap:6,transition:'background 0.18s',cursor:'default'}}
+      onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
+      onMouseLeave={e=>e.currentTarget.style.background=t.card}>
+      <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.1em',color:t.textMuted,textTransform:'uppercase'}}>{label}</div>
+      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between'}}>
         <div>
-          <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Min Position Size — smallest trade value in USD (takes effect immediately)</div>
-          <div class="settings-edit-row">
-            <span style="font-size:13px">$</span>
-            <input class="settings-input" type="number" id="input-min-size" min="1" step="1" placeholder="e.g. 10">
-            <button class="btn start" style="padding:7px 18px;font-size:13px" onclick="saveMinSize()">Save</button>
-            <span id="save-status" style="font-size:12px;color:var(--muted)"></span>
+          <div style={{fontSize:22,fontWeight:700,color:col,letterSpacing:'-0.02em',lineHeight:1}}>{value}</div>
+          {sub && <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{sub}</div>}
+        </div>
+        {spark && <Sparkline data={spark} color={sparkColor||col} width={72} height={26}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+function PnLChart({trades,t}) {
+  const ref=useRef(null), chart=useRef(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chart.current) chart.current.destroy();
+    const sorted=[...trades].reverse();
+    let cum=0;
+    const data=sorted.map(tr=>{cum+=tr.pnl;return+cum.toFixed(2);});
+    const pos=data[data.length-1]>=0;
+    chart.current=new Chart(ref.current,{
+      type:'line',
+      data:{labels:sorted.map(tr=>tr.symbol.replace('USDT','')),datasets:[{data,borderColor:pos?t.green:t.red,borderWidth:2,fill:true,
+        backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,ctx.chart.height);g.addColorStop(0,(pos?t.green:t.red)+'28');g.addColorStop(1,(pos?t.green:t.red)+'00');return g;},
+        tension:0.4,pointRadius:3,pointBackgroundColor:pos?t.green:t.red,pointBorderColor:t.card,pointBorderWidth:1.5,pointHoverRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,titleColor:t.textDim,bodyColor:t.text,callbacks:{label:ctx=>` $${ctx.raw.toFixed(2)}`}}},
+        scales:{x:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},maxTicksLimit:10}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
+    });
+    return()=>{if(chart.current)chart.current.destroy();};
+  },[t]);
+  return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
+}
+
+function DirectionChart({t,trades=[]}) {
+  const ref=useRef(null),chart=useRef(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chart.current) chart.current.destroy();
+    const lw=trades.filter(x=>x.side==='Long'&&x.pnl>0).reduce((a,b)=>a+b.pnl,0);
+    const ll=trades.filter(x=>x.side==='Long'&&x.pnl<0).reduce((a,b)=>a+Math.abs(b.pnl),0);
+    const sw=trades.filter(x=>x.side==='Short'&&x.pnl>0).reduce((a,b)=>a+b.pnl,0);
+    const sl=trades.filter(x=>x.side==='Short'&&x.pnl<0).reduce((a,b)=>a+Math.abs(b.pnl),0);
+    chart.current=new Chart(ref.current,{
+      type:'bar',
+      data:{labels:['Long Wins','Long Loss','Short Wins','Short Loss'],
+        datasets:[{data:[lw,ll,sw,sl],backgroundColor:[t.green+'cc',t.red+'cc',t.green+'88',t.red+'88'],borderRadius:4,borderSkipped:false}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,bodyColor:t.text,callbacks:{label:ctx=>` $${ctx.raw.toFixed(2)}`}}},
+        scales:{x:{grid:{display:false},ticks:{color:t.textMuted,font:{size:10}}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
+    });
+    return()=>{if(chart.current)chart.current.destroy();};
+  },[t]);
+  return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
+}
+
+function WinRateChart({t,trades=[]}) {
+  const ref=useRef(null),chart=useRef(null);
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chart.current) chart.current.destroy();
+    const wins=trades.filter(tr=>tr.pnl>0).length;
+    chart.current=new Chart(ref.current,{
+      type:'doughnut',
+      data:{labels:['Wins','Losses'],datasets:[{data:[wins,Math.max(0,trades.length-wins)],backgroundColor:[t.green+'cc',t.border],borderColor:[t.green+'44',t.border],borderWidth:1.5,hoverOffset:4}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,bodyColor:t.text}}}
+    });
+    return()=>{if(chart.current)chart.current.destroy();};
+  },[t,trades]);
+  return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
+}
+
+function HeatmapCalendar({t,trades=[]}) {
+  const heatmap = useMemo(()=>{
+    const map={};
+    trades.forEach(tr=>{ if(!tr.exit) return; const d=new Date(tr.exit||tr.time).toDateString(); map[d]=(map[d]||0)+tr.pnl; });
+    const days=[];
+    for(let i=89;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push({date:d,pnl:+(map[d.toDateString()]||0).toFixed(2)}); }
+    return days;
+  },[trades]);
+  const max=Math.max(...heatmap.map(d=>Math.abs(d.pnl)),1);
+  const [hovered,setHovered]=useState(null);
+  const weeks=[]; let week=[];
+  heatmap.forEach((d,i)=>{ week.push(d); if(week.length===7||i===heatmap.length-1){weeks.push(week);week=[];} });
+
+  function cellColor(pnl) {
+    if(pnl===0) return t.border;
+    const intensity=Math.abs(pnl)/max;
+    return pnl>0
+      ? `oklch(${0.45+intensity*0.25} 0.18 150)`
+      : `oklch(${0.45+intensity*0.25} 0.18 15)`;
+  }
+  const monthLabels=[];
+  weeks.forEach((w,wi)=>{ if(wi===0||w[0].date.getDate()<=7){ monthLabels[wi]=w[0].date.toLocaleString('en',{month:'short'}); } });
+
+  return (
+    <div>
+      <div style={{display:'flex',gap:2,marginBottom:6}}>
+        {weeks.map((w,wi)=>(
+          <div key={wi} style={{fontSize:9,color:t.textMuted,width:14,textAlign:'center'}}>{monthLabels[wi]||''}</div>
+        ))}
+      </div>
+      <div style={{display:'flex',gap:2}}>
+        {weeks.map((w,wi)=>(
+          <div key={wi} style={{display:'flex',flexDirection:'column',gap:2}}>
+            {w.map((d,di)=>(
+              <div key={di}
+                style={{width:14,height:14,borderRadius:2.5,background:cellColor(d.pnl),cursor:'default',transition:'transform 0.1s',position:'relative'}}
+                onMouseEnter={e=>setHovered({d,x:e.clientX,y:e.clientY})}
+                onMouseLeave={()=>setHovered(null)}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      {hovered && (
+        <div style={{position:'fixed',left:hovered.x+10,top:hovered.y-40,background:t.card,border:`1px solid ${t.border}`,borderRadius:6,padding:'6px 10px',fontSize:11,color:t.text,zIndex:1000,pointerEvents:'none',boxShadow:'0 4px 16px rgba(0,0,0,0.4)'}}>
+          <div style={{color:t.textMuted,fontSize:10}}>{hovered.d.date.toLocaleDateString('en',{month:'short',day:'numeric'})}</div>
+          <div style={{fontWeight:700,color:hovered.d.pnl>=0?t.green:t.red}}>{fmt(hovered.d.pnl)}</div>
+        </div>
+      )}
+      <div style={{display:'flex',gap:4,alignItems:'center',marginTop:8}}>
+        <span style={{fontSize:10,color:t.textMuted}}>Less</span>
+        {[-1,-0.5,0,0.5,1].map(v=>(
+          <div key={v} style={{width:10,height:10,borderRadius:2,background:v===0?t.border:v>0?`oklch(${0.45+v*0.25} 0.18 150)`:`oklch(${0.45+Math.abs(v)*0.25} 0.18 15)`}}/>
+        ))}
+        <span style={{fontSize:10,color:t.textMuted}}>More</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── TRADE DRAWER ─────────────────────────────────────────────────────────────
+function TradeDrawer({trade,t,onClose}) {
+  if(!trade) return null;
+  const pnlColor = trade.pnl>=0?t.green:t.red;
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:500,display:'flex',justifyContent:'flex-end'}} onClick={onClose}>
+      <div className="drawer-enter" style={{width:380,height:'100%',background:t.sidebar,borderLeft:`1px solid ${t.border}`,padding:28,overflowY:'auto',display:'flex',flexDirection:'column',gap:20}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:800,color:t.text}}>{trade.symbol}</div>
+            <div style={{fontSize:12,color:t.textMuted,marginTop:2}}>{trade.time} · {trade.duration}</div>
+          </div>
+          <button onClick={onClose} style={{background:'transparent',border:`1px solid ${t.border}`,borderRadius:6,color:t.textMuted,width:32,height:32,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+        </div>
+
+        {/* P&L hero */}
+        <div style={{background:trade.pnl>=0?t.greenDim:t.redDim,border:`1px solid ${pnlColor}33`,borderRadius:12,padding:'20px',textAlign:'center'}}>
+          <div style={{fontSize:36,fontWeight:800,color:pnlColor,letterSpacing:'-0.03em'}}>{fmt(trade.pnl)}</div>
+          <div style={{fontSize:12,color:t.textDim,marginTop:4}}>Realized P&L</div>
+        </div>
+
+        {/* Details grid */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {[
+            {l:'Side',      v:<Badge color={trade.side==='Long'?'green':'red'} t={t}>{trade.side}</Badge>},
+            {l:'Leverage',  v:<span style={{color:t.accent,fontWeight:700,fontFamily:'monospace'}}>{trade.leverage}</span>},
+            {l:'Entry',     v:`$${trade.entry.toLocaleString()}`},
+            {l:'Exit',      v:`$${trade.exit.toLocaleString()}`},
+            {l:'Duration',  v:trade.duration},
+            {l:'Symbol',    v:trade.symbol},
+          ].map((row,i)=>(
+            <div key={i} style={{background:t.card,borderRadius:8,padding:'12px',border:`1px solid ${t.border}`}}>
+              <div style={{fontSize:10,color:t.textMuted,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>{row.l}</div>
+              <div style={{fontSize:13,fontWeight:600,color:t.text}}>{row.v}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* AI confidence */}
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'16px'}}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>AI Signal</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <span style={{fontSize:13,color:t.textDim}}>Confidence</span>
+            <span style={{fontSize:18,fontWeight:800,color:trade.confidence>=70?t.green:t.accent}}>{trade.confidence}%</span>
+          </div>
+          <div style={{height:4,background:t.border,borderRadius:2,overflow:'hidden'}}>
+            <div style={{height:'100%',width:trade.confidence+'%',background:trade.confidence>=70?t.green:t.accent,borderRadius:2}}/>
+          </div>
+          <div style={{fontSize:12,color:t.textDim,marginTop:12,lineHeight:1.5,fontStyle:'italic'}}>"{trade.reason}"</div>
+        </div>
+
+        {/* Price move */}
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'16px'}}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>Price Movement</div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{flex:1,textAlign:'center'}}>
+              <div style={{fontSize:10,color:t.textMuted,marginBottom:3}}>Entry</div>
+              <div style={{fontSize:14,fontWeight:700,color:t.text,fontFamily:'monospace'}}>${trade.entry.toLocaleString()}</div>
+            </div>
+            <div style={{flex:1,display:'flex',justifyContent:'center'}}>
+              <div style={{fontSize:18,color:pnlColor}}>→</div>
+            </div>
+            <div style={{flex:1,textAlign:'center'}}>
+              <div style={{fontSize:10,color:t.textMuted,marginBottom:3}}>Exit</div>
+              <div style={{fontSize:14,fontWeight:700,color:pnlColor,fontFamily:'monospace'}}>${trade.exit.toLocaleString()}</div>
+            </div>
+          </div>
+          <div style={{marginTop:12,textAlign:'center',fontSize:13,fontWeight:700,color:pnlColor}}>
+            {fmtPct(((trade.exit-trade.entry)/trade.entry)*100*3)} (3× leveraged)
           </div>
         </div>
-
-        <!-- Data refresh info -->
-        <div class="settings-hint" style="margin-top:20px">
-          <strong>Data Refresh:</strong> WebSocket pushes state every <strong>5 s</strong>. REST API fallback polls every <strong>8 s</strong>.<br>
-          <strong>AI Retraining:</strong> Automatic every <strong>12 hours</strong> using BTC · ETH · SOL · BNB · XRP · DOGE · AVAX · LINK candles.<br>
-          <strong>Market Scanner:</strong> Re-scans every <strong>5 min</strong>, selects top 2 pairs by ADX + volume + ATR momentum.<br>
-          <strong>HTF Filter:</strong> 1h &amp; 4h EMA trend cached <strong>15 min</strong> per pair — against-trend entries get confidence penalty.<br>
-          <strong>To change mode / leverage / pairs:</strong> Update environment variables and redeploy.
-        </div>
-
       </div>
     </div>
+  );
+}
 
-    <!-- Live Readiness (paper mode only) -->
-    <div class="readiness-card" id="readiness-card" style="display:none">
-      <div class="readiness-header">
-        <h2>🎯 Live Readiness</h2>
-        <span class="refresh-tag">Paper Mode Only</span>
-      </div>
-      <div class="readiness-score-wrap">
-        <div class="readiness-circle low" id="readiness-circle">
-          <span id="readiness-pct">0%</span>
+// ─── CLOSE POSITION MODAL ────────────────────────────────────────────────────
+function CloseModal({pos,t,onClose,onConfirm}) {
+  if(!pos) return null;
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:600,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}>
+      <div style={{background:t.sidebar,border:`1px solid ${t.border}`,borderRadius:14,padding:28,width:340,boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:16,fontWeight:800,color:t.text,marginBottom:6}}>Close Position</div>
+        <div style={{fontSize:13,color:t.textDim,marginBottom:20}}>Close {pos.dir} on <strong style={{color:t.text}}>{pos.symbol}</strong> at market price?</div>
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:'14px',marginBottom:20}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <div><div style={{fontSize:10,color:t.textMuted}}>Entry</div><div style={{fontWeight:700,color:t.text,fontFamily:'monospace'}}>${numFmt(pos.entry)}</div></div>
+            <div><div style={{fontSize:10,color:t.textMuted}}>Mark</div><div style={{fontWeight:700,color:t.text,fontFamily:'monospace'}}>${numFmt(pos.curPrice)}</div></div>
+            <div><div style={{fontSize:10,color:t.textMuted}}>Unrealized P&L</div><div style={{fontWeight:700,color:pos.pnl>=0?t.green:t.red}}>{fmt(pos.pnl)}</div></div>
+            <div><div style={{fontSize:10,color:t.textMuted}}>Margin</div><div style={{fontWeight:700,color:t.text}}>{pos.margin}</div></div>
+          </div>
         </div>
-        <div>
-          <div class="readiness-label low" id="readiness-label">Keep Paper Trading</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">Paper trades needed before going live</div>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:'10px',borderRadius:7,border:`1px solid ${t.border}`,background:'transparent',color:t.textMuted,fontWeight:600,cursor:'pointer',fontFamily:'inherit',fontSize:13}}>Cancel</button>
+          <button onClick={()=>{onConfirm(pos);onClose();}} style={{flex:1,padding:'10px',borderRadius:7,border:'none',background:t.red,color:'#fff',fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:13}}>Close at Market</button>
         </div>
-      </div>
-      <ul class="readiness-list" id="readiness-list"></ul>
-      <div class="readiness-hint">
-        When score reaches <strong>100%</strong>, set <code>TRADING_MODE=live</code> and replace testnet API keys with real Bybit mainnet keys, then redeploy.
       </div>
     </div>
-
-  </main>
-</div>
-
-<script>
-// ── WebSocket ──────────────────────────────────────────────────────────────
-const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-let ws, reconnectTimer;
-let state = {};
-let logCount = 0;
-let lastUpdateTs = null;
-
-// Live "Xs ago" ticker
-function tickRefresh() {
-  const el = document.getElementById('refresh-timer');
-  const agoEl = document.getElementById('refresh-ago');
-  if (!lastUpdateTs) { agoEl.textContent = 'waiting…'; return; }
-  const sec = Math.floor((Date.now() - lastUpdateTs) / 1000);
-  if (sec < 60) {
-    agoEl.textContent = sec <= 1 ? 'just now' : sec + 's ago';
-  } else {
-    agoEl.textContent = Math.floor(sec / 60) + 'm ago';
-  }
-  // Color feedback: green <10s, yellow 10-30s, red >30s
-  el.className = 'refresh-timer ' + (sec < 10 ? 'fresh' : sec < 30 ? 'stale' : 'dead');
+  );
 }
-setInterval(tickRefresh, 1000);
 
-function connect() {
-  ws = new WebSocket(`${proto}://${location.host}`);
-  ws.onopen = () => {
-    setConn(true);
-    clearTimeout(reconnectTimer);
-    addLog('Live feed connected', 'info');
+// ─── TABLE HELPER ────────────────────────────────────────────────────────────
+function Table({t,columns,rows,renderRow}) {
+  return (
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+        <thead>
+          <tr style={{borderBottom:`1px solid ${t.border}`}}>
+            {columns.map(c=><th key={c} style={{padding:'8px 12px',textAlign:'left',color:t.textMuted,fontWeight:600,fontSize:10,letterSpacing:'0.08em',textTransform:'uppercase',whiteSpace:'nowrap'}}>{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>{rows.map((row,i)=>renderRow(row,i,t))}</tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── SECTIONS ────────────────────────────────────────────────────────────────
+function DashboardSection({t,setPage,status,trades,wsConnected}) {
+  const closedTrades = trades.filter(tr=>tr.status==='closed');
+  const totalPnL = status?.totalPnL ?? 0;
+  const dailyPnL = status?.dailyPnL ?? 0;
+  const balance = Object.values(status?.walletBalances||{})[0] ?? 0;
+  const winRate = (status?.lifetimeWinRate ?? 0).toFixed(1);
+  const wins = closedTrades.filter(tr=>tr.pnl>0).length;
+
+  const liveBalance = useAnimatedNumber(balance, 2, 600);
+  const livePnL     = useAnimatedNumber(dailyPnL, 2, 600);
+
+  const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
+  const [drawerTrade,setDrawerTrade]=useState(null);
+  const positions = (status?.positionDetails||[]).map(p=>mapPosition(p, status?.leverage));
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:18}}>
+      {/* Stats */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12}}>
+        <StatCard t={t} label="USDT Balance" value={`$${liveBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`} sub={status?.mode==='paper'?'Paper account':'Live account'} sparkColor={t.green}/>
+        <StatCard t={t} label="Daily P&L" value={fmt(livePnL)} sub="Today" accent delta={livePnL} sparkColor={livePnL>=0?t.green:t.red}/>
+        <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="All time" accent delta={totalPnL} sparkColor={totalPnL>=0?t.green:t.red}/>
+        <StatCard t={t} label="Win Rate" value={winRate+'%'} sub={`${wins}/${closedTrades.length} trades`} sparkColor={t.accent}/>
+        <StatCard t={t} label="Open Positions" value={status?.openPositions??0} sub={`${status?.leverage??3}× isolated`}/>
+        <StatCard t={t} label="Monitored Pairs" value={status?.monitoredPairs?.length??0} sub="Active pairs"/>
+      </div>
+
+      {/* Live indicator */}
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:-6}}>
+        <StatusDot active={wsConnected} t={t}/>
+        <span style={{fontSize:11,color:wsConnected?t.green:t.textMuted}} className="live-shimmer">{wsConnected?'Live — WebSocket connected':'Polling every 8s'}</span>
+      </div>
+
+      {/* Charts row */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16}}>
+        <div style={card}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Cumulative P&L</div>
+              <div style={{fontSize:22,fontWeight:700,color:totalPnL>=0?t.green:t.red,marginTop:4}}>{fmt(totalPnL)}</div>
+            </div>
+            <Badge color="green" t={t}>Last 20 Trades</Badge>
+          </div>
+          <div style={{height:170}}><PnLChart trades={closedTrades} t={t}/></div>
+        </div>
+        <div style={card}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>Open Positions</div>
+          {positions.length===0 && <div style={{padding:'20px',textAlign:'center',color:t.textMuted,fontSize:13}}>No open positions</div>}
+          {positions.map((pos,i)=>(
+            <div key={i} style={{padding:'11px 0',borderBottom:i<positions.length-1?`1px solid ${t.border}`:'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+                <div style={{display:'flex',alignItems:'center',gap:7}}>
+                  <span style={{fontWeight:700,color:t.text,fontSize:13}}>{pos.symbol.replace('USDT','')}</span>
+                  <Badge color={pos.dir==='Long'?'green':'red'} t={t}>{pos.dir}</Badge>
+                  <span style={{fontSize:10,color:t.textMuted}}>{pos.leverage}</span>
+                </div>
+                <span style={{fontWeight:700,color:pos.pnl>=0?t.green:t.red,fontSize:13}}>{fmt(pos.pnl)}</span>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
+                <div style={{fontSize:11,color:t.textDim}}>Entry <span style={{color:t.text}}>${numFmt(pos.entry)}</span></div>
+                <div style={{fontSize:11,color:t.textDim}}>Mark <span style={{color:t.text}}>${numFmt(pos.curPrice)}</span></div>
+              </div>
+              <div style={{marginTop:6,height:3,borderRadius:2,background:t.border,overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${Math.min(100,Math.abs(pos.pct)*50)}%`,background:pos.pnl>=0?t.green:t.red,borderRadius:2}}/>
+              </div>
+            </div>
+          ))}
+          <button onClick={()=>setPage('positions')} style={{marginTop:14,width:'100%',padding:'8px',borderRadius:6,border:`1px solid ${t.border}`,background:'transparent',color:t.textMuted,fontSize:12,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=t.accent;e.currentTarget.style.color=t.accent;}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=t.border;e.currentTarget.style.color=t.textMuted;}}>
+            View all positions →
+          </button>
+        </div>
+      </div>
+
+      {/* Recent trades */}
+      <div style={card}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Recent Trades</div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <span style={{fontSize:11,color:t.textDim}}>Click a row to inspect</span>
+            <Badge t={t}>{closedTrades.length} total</Badge>
+          </div>
+        </div>
+        <Table t={t} columns={['Time','Symbol','Side','Entry','Exit','P&L','Confidence','Duration']}
+          rows={closedTrades.slice(0,8)}
+          renderRow={(row,i,t)=>(
+            <tr key={i} style={{borderBottom:`1px solid ${t.border}33`,cursor:'pointer',transition:'background 0.12s'}}
+              onClick={()=>setDrawerTrade(row)}
+              onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <td style={{padding:'9px 12px',color:t.textDim,fontSize:12}}>{row.time}</td>
+              <td style={{padding:'9px 12px',color:t.text,fontWeight:600}}>{row.symbol}</td>
+              <td style={{padding:'9px 12px'}}><Badge color={row.side==='Long'?'green':'red'} t={t}>{row.side}</Badge></td>
+              <td style={{padding:'9px 12px',color:t.textDim,fontFamily:'monospace',fontSize:12}}>${row.entry.toLocaleString()}</td>
+              <td style={{padding:'9px 12px',color:t.textDim,fontFamily:'monospace',fontSize:12}}>${row.exit.toLocaleString()}</td>
+              <td style={{padding:'9px 12px',color:row.pnl>=0?t.green:t.red,fontWeight:700,fontFamily:'monospace'}}>{fmt(row.pnl)}</td>
+              <td style={{padding:'9px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <div style={{width:40,height:4,background:t.border,borderRadius:2,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:row.confidence+'%',background:row.confidence>=70?t.green:t.accent,borderRadius:2}}/>
+                  </div>
+                  <span style={{fontSize:11,color:t.textDim}}>{row.confidence}%</span>
+                </div>
+              </td>
+              <td style={{padding:'9px 12px',color:t.textMuted,fontSize:12}}>{row.duration}</td>
+            </tr>
+          )}
+        />
+      </div>
+      <TradeDrawer trade={drawerTrade} t={t} onClose={()=>setDrawerTrade(null)}/>
+    </div>
+  );
+}
+
+function PositionsSection({t,status}) {
+  const [closeTarget,setCloseTarget]=useState(null);
+  const leverage = status?.leverage||3;
+  const open=(status?.positionDetails||[]).map(p=>mapPosition(p,leverage));
+  const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+        <StatCard t={t} label="Open Positions" value={open.length} sub={`Of ${status?.leverage||3}× max`}/>
+        <StatCard t={t} label="Unrealized P&L" value={fmt(status?.unrealizedPnL??0)} sub="Combined" accent delta={status?.unrealizedPnL??0}/>
+        <StatCard t={t} label="Mode" value={status?.mode?.toUpperCase()??'—'} sub={status?.marginMode||'isolated'}/>
+      </div>
+      <div style={card}>
+        <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>Live Positions</div>
+        {open.length===0 ? (
+          <div style={{padding:'40px',textAlign:'center',color:t.textMuted,fontSize:13}}>No open positions</div>
+        ) : (
+          <Table t={t} columns={['Symbol','Direction','Leverage','Entry','Mark','Size','Margin','Unrealized P&L','%','Liq. Price','']}
+            rows={open}
+            renderRow={(pos,i,t)=>(
+              <tr key={i} style={{borderBottom:`1px solid ${t.border}33`,transition:'background 0.12s'}}
+                onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
+                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                <td style={{padding:'12px',color:t.text,fontWeight:700}}>{pos.symbol}</td>
+                <td style={{padding:'12px'}}><Badge color={pos.dir==='Long'?'green':'red'} t={t}>{pos.dir}</Badge></td>
+                <td style={{padding:'12px',color:t.accent,fontWeight:600,fontFamily:'monospace'}}>{pos.leverage}</td>
+                <td style={{padding:'12px',color:t.textDim,fontFamily:'monospace'}}>${numFmt(pos.entry)}</td>
+                <td style={{padding:'12px',color:t.text,fontFamily:'monospace'}}>${numFmt(pos.curPrice)}</td>
+                <td style={{padding:'12px',color:t.textDim,fontFamily:'monospace'}}>{pos.size}</td>
+                <td style={{padding:'12px',color:t.textDim,fontFamily:'monospace'}}>{pos.margin}</td>
+                <td style={{padding:'12px',color:pos.pnl>=0?t.green:t.red,fontWeight:700,fontFamily:'monospace'}}>{fmt(pos.pnl)}</td>
+                <td style={{padding:'12px',color:pos.pct>=0?t.green:t.red,fontFamily:'monospace'}}>{fmtPct(pos.pct)}</td>
+                <td style={{padding:'12px',color:t.red,fontFamily:'monospace'}}>${numFmt(pos.liq)}</td>
+                <td style={{padding:'12px'}}>
+                  <button onClick={()=>setCloseTarget(pos)} style={{padding:'5px 12px',borderRadius:5,border:`1px solid ${t.red}`,background:t.redDim,color:t.red,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s'}}
+                    onMouseEnter={e=>{e.currentTarget.style.background=t.red;e.currentTarget.style.color='#fff';}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=t.redDim;e.currentTarget.style.color=t.red;}}>
+                    Close
+                  </button>
+                </td>
+              </tr>
+            )}
+          />
+        )}
+      </div>
+      <CloseModal pos={closeTarget} t={t} onClose={()=>setCloseTarget(null)} onConfirm={p=>setClosed(c=>[...c,p.symbol])}/>
+    </div>
+  );
+}
+
+function HistorySection({t,trades=[]}) {
+  const [filter,setFilter]=useState('All');
+  const [search,setSearch]=useState('');
+  const [drawerTrade,setDrawerTrade]=useState(null);
+  const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
+  const btnStyle=act=>({padding:'5px 14px',borderRadius:6,border:`1px solid ${act?t.accent:t.border}`,background:act?t.accentDim:'transparent',color:act?t.accent:t.textMuted,cursor:'pointer',fontSize:12,fontWeight:600,transition:'all 0.15s',fontFamily:'inherit'});
+  const closedTrades=trades.filter(tr=>tr.status==='closed');
+
+  const filtered=useMemo(()=>closedTrades.filter(tr=>{
+    if(filter!=='All'&&tr.side!==filter) return false;
+    if(search&&!tr.symbol.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }),[filter,search,trades]);
+
+  const totalPnL=filtered.reduce((a,b)=>a+b.pnl,0);
+  const wins=filtered.filter(tr=>tr.pnl>0).length;
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        <StatCard t={t} label="Total Trades" value={filtered.length} sub="Closed"/>
+        <StatCard t={t} label="Win Rate" value={(wins/Math.max(filtered.length,1)*100).toFixed(1)+'%'} sub={`${wins} wins`}/>
+        <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="Net" accent delta={totalPnL}/>
+        <StatCard t={t} label="Avg P&L" value={fmt(totalPnL/Math.max(filtered.length,1))} sub="Per trade" accent delta={totalPnL/Math.max(filtered.length,1)}/>
+      </div>
+      <div style={card}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,gap:12,flexWrap:'wrap'}}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Trade History</div>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            {/* Search */}
+            <div style={{position:'relative'}}>
+              <svg style={{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}} width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <circle cx="5" cy="5" r="3.5" stroke={t.textMuted} strokeWidth="1.3"/>
+                <path d="M8 8l2 2" stroke={t.textMuted} strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search symbol…"
+                style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:6,padding:'5px 10px 5px 26px',color:t.text,fontSize:12,outline:'none',fontFamily:'inherit',width:160,transition:'border 0.15s'}}
+                onFocus={e=>e.target.style.borderColor=t.accent}
+                onBlur={e=>e.target.style.borderColor=t.border}/>
+            </div>
+            {['All','Long','Short'].map(f=><button key={f} style={btnStyle(filter===f)} onClick={()=>setFilter(f)}>{f}</button>)}
+          </div>
+        </div>
+        <div style={{fontSize:11,color:t.textDim,marginBottom:10}}>Click any row to inspect trade details</div>
+        <Table t={t} columns={['Time','Symbol','Side','Leverage','Entry','Exit','P&L','Confidence','Duration']}
+          rows={filtered}
+          renderRow={(row,i,t)=>(
+            <tr key={i} style={{borderBottom:`1px solid ${t.border}33`,cursor:'pointer',transition:'background 0.12s'}}
+              onClick={()=>setDrawerTrade(row)}
+              onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <td style={{padding:'9px 12px',color:t.textDim,fontSize:12}}>{row.time}</td>
+              <td style={{padding:'9px 12px',color:t.text,fontWeight:600}}>{row.symbol}</td>
+              <td style={{padding:'9px 12px'}}><Badge color={row.side==='Long'?'green':'red'} t={t}>{row.side}</Badge></td>
+              <td style={{padding:'9px 12px',color:t.accent,fontFamily:'monospace',fontSize:12}}>{row.leverage}</td>
+              <td style={{padding:'9px 12px',color:t.textDim,fontFamily:'monospace',fontSize:12}}>${row.entry.toLocaleString()}</td>
+              <td style={{padding:'9px 12px',color:t.textDim,fontFamily:'monospace',fontSize:12}}>${row.exit.toLocaleString()}</td>
+              <td style={{padding:'9px 12px',color:row.pnl>=0?t.green:t.red,fontWeight:700,fontFamily:'monospace'}}>{fmt(row.pnl)}</td>
+              <td style={{padding:'9px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <div style={{width:36,height:4,background:t.border,borderRadius:2,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:row.confidence+'%',background:row.confidence>=70?t.green:t.accent,borderRadius:2}}/>
+                  </div>
+                  <span style={{fontSize:11,color:t.textDim}}>{row.confidence}%</span>
+                </div>
+              </td>
+              <td style={{padding:'9px 12px',color:t.textMuted,fontSize:12}}>{row.duration}</td>
+            </tr>
+          )}
+        />
+        {filtered.length===0 && <div style={{padding:'40px',textAlign:'center',color:t.textMuted,fontSize:13}}>No trades match filter</div>}
+      </div>
+      <TradeDrawer trade={drawerTrade} t={t} onClose={()=>setDrawerTrade(null)}/>
+    </div>
+  );
+}
+
+function AnalyticsSection({t,trades=[]}) {
+  const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
+  const closedTrades=trades.filter(tr=>tr.status==='closed');
+  const wins=closedTrades.filter(tr=>tr.pnl>0).length;
+  const totalWon=closedTrades.filter(tr=>tr.pnl>0).reduce((a,b)=>a+b.pnl,0);
+  const totalLost=closedTrades.filter(tr=>tr.pnl<0).reduce((a,b)=>a+Math.abs(b.pnl),0);
+  const lw=closedTrades.filter(tr=>tr.side==='Long').length;
+  const sw=closedTrades.filter(tr=>tr.side==='Short').length;
+  const lwins=closedTrades.filter(tr=>tr.side==='Long'&&tr.pnl>0).length;
+  const swins=closedTrades.filter(tr=>tr.side==='Short'&&tr.pnl>0).length;
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        <StatCard t={t} label="Total Won" value={fmt(totalWon)} sub={`${wins} trades`} accent delta={1}/>
+        <StatCard t={t} label="Total Lost" value={fmt(-totalLost)} sub={`${closedTrades.length-wins} trades`} accent delta={-1}/>
+        <StatCard t={t} label="Profit Factor" value={totalLost>0?(totalWon/totalLost).toFixed(2)+'×':'—'} sub="Won ÷ Lost"/>
+        <StatCard t={t} label="Expectancy" value={closedTrades.length>0?fmt((totalWon-totalLost)/closedTrades.length):'$0.00'} sub="Per trade" accent delta={(totalWon-totalLost)/Math.max(closedTrades.length,1)}/>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <div style={card}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>Win Rate Breakdown</div>
+          <div style={{display:'flex',alignItems:'center',gap:20}}>
+            <div style={{width:130,height:130,flexShrink:0}}><WinRateChart t={t} trades={closedTrades}/></div>
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div>
+                <div style={{fontSize:28,fontWeight:800,color:t.green}}>{closedTrades.length>0?(wins/closedTrades.length*100).toFixed(1):0}%</div>
+                <div style={{fontSize:12,color:t.textDim}}>Overall win rate</div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div style={{padding:'10px',background:t.greenDim,borderRadius:8,border:`1px solid ${t.green}22`}}>
+                  <div style={{fontSize:16,fontWeight:700,color:t.green}}>{lw>0?(lwins/lw*100).toFixed(0):0}%</div>
+                  <div style={{fontSize:10,color:t.textDim}}>Long win</div>
+                </div>
+                <div style={{padding:'10px',background:t.accentDim,borderRadius:8,border:`1px solid ${t.accent}22`}}>
+                  <div style={{fontSize:16,fontWeight:700,color:t.accent}}>{sw>0?(swins/sw*100).toFixed(0):0}%</div>
+                  <div style={{fontSize:10,color:t.textDim}}>Short win</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={card}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>P&L by Direction</div>
+          <div style={{height:170}}><DirectionChart t={t} trades={closedTrades}/></div>
+        </div>
+      </div>
+
+      {/* Heatmap */}
+      <div style={card}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Daily P&L Heatmap</div>
+          <span style={{fontSize:11,color:t.textDim}}>Last 90 days — hover for details</span>
+        </div>
+        <HeatmapCalendar t={t} trades={closedTrades}/>
+      </div>
+
+      {/* Bot health */}
+      <div style={card}>
+        <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Bot Health</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+          {[
+            {label:'Uptime',        value:'14h 22m',  sub:'Since last start',  ok:true},
+            {label:'Last Retrain',  value:'6h ago',   sub:'Next in 5h 38m',    ok:true},
+            {label:'Avg Confidence',value:'71%',      sub:'Last 20 signals',   ok:true},
+            {label:'API Latency',   value:'38ms',     sub:'Bybit testnet',      ok:true},
+            {label:'Training Samples',value:'847',    sub:'In model',           ok:true},
+            {label:'Feature Coverage',value:'100%',   sub:'All trades tagged',  ok:true},
+            {label:'Live Readiness',value:'42%',      sub:'42/100 paper trades',ok:false},
+            {label:'WebSocket',     value:'Connected',sub:'5s push interval',   ok:true},
+          ].map((item,i)=>(
+            <div key={i} style={{padding:'14px',background:t.bg,borderRadius:8,border:`1px solid ${item.ok?t.border:t.accent+'44'}`}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                <div style={{fontSize:13,fontWeight:700,color:item.ok?t.text:t.accent}}>{item.value}</div>
+                <div style={{width:7,height:7,borderRadius:'50%',background:item.ok?t.green:t.accent,marginTop:3,boxShadow:item.ok?`0 0 5px ${t.green}`:`0 0 5px ${t.accent}`,animation:'pulse 2s infinite'}}/>
+              </div>
+              <div style={{fontSize:10,fontWeight:600,color:t.textMuted,letterSpacing:'0.06em',textTransform:'uppercase'}}>{item.label}</div>
+              <div style={{fontSize:10,color:t.textDim,marginTop:2}}>{item.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogsSection({t,liveLogs=[],wsConnected}) {
+  const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
+  const typeColor={info:t.textDim,trade:t.green,ai:t.accent,system:t.accent2};
+  const typeLabel={info:'INFO',trade:'TRADE',ai:'AI',system:'SYS'};
+  return (
+    <div style={card}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Live Activity Log</div>
+          <div style={{display:'flex',alignItems:'center',gap:5}}><StatusDot active={wsConnected} t={t}/><span style={{fontSize:11,color:wsConnected?t.green:t.textMuted}}>{wsConnected?'Live':'Offline'}</span></div>
+        </div>
+        <span style={{fontSize:11,color:t.textMuted}}>{liveLogs.length} entries</span>
+      </div>
+      {liveLogs.length===0 && <div style={{padding:'30px',textAlign:'center',color:t.textMuted,fontSize:13}}>Waiting for log messages…</div>}
+      <div style={{fontFamily:'monospace',fontSize:12.5,display:'flex',flexDirection:'column',gap:1}}>
+        {liveLogs.map((log,i)=>(
+          <div key={i} style={{display:'flex',gap:12,padding:'7px 10px',borderRadius:5,transition:'background 0.12s',background:i===0?t.accentDim:'transparent'}}
+            onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
+            onMouseLeave={e=>e.currentTarget.style.background=i===0?t.accentDim:'transparent'}>
+            <span style={{color:t.textMuted,flexShrink:0,minWidth:90}}>{log.t}</span>
+            <span style={{padding:'1px 6px',borderRadius:3,fontSize:9,fontWeight:800,letterSpacing:'0.08em',background:typeColor[log.type]+'22',color:typeColor[log.type],flexShrink:0,height:'fit-content',marginTop:1,minWidth:40,textAlign:'center'}}>{typeLabel[log.type]}</span>
+            <span style={{color:log.type==='trade'?t.green:log.type==='ai'?t.accent:log.type==='system'?t.accent2:t.text}}>{log.msg}</span>
+          </div>
+        ))}
+        <div style={{display:'flex',gap:12,padding:'7px 10px'}}>
+          <span style={{color:t.textMuted,minWidth:90}}>—</span>
+          <span style={{color:t.accent}}>█<span className="cursor-blink">_</span></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsSection({t}) {
+  const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'24px'};
+  const inp={width:'100%',background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:'9px 12px',color:t.text,fontSize:13,outline:'none',fontFamily:'inherit',transition:'border 0.15s'};
+  const lbl={fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:7,display:'block'};
+  const hdr={fontSize:13,fontWeight:700,color:t.text,marginBottom:16,paddingBottom:10,borderBottom:`1px solid ${t.border}`};
+  const saveBtn={background:t.accent,color:t.bg,border:'none',borderRadius:7,padding:'9px 20px',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit'};
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <div style={card}>
+          <div style={hdr}>Risk Management</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+            <div><label style={lbl}>Max Positions</label><input style={inp} defaultValue="3" type="number" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+            <div><label style={lbl}>Leverage</label><input style={inp} defaultValue="3" type="number" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+            <div><label style={lbl}>Min Position ($)</label><input style={inp} defaultValue="50" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+            <div><label style={lbl}>Max Position ($)</label><input style={inp} defaultValue="500" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+          </div>
+          <div style={{marginBottom:16}}><label style={lbl}>Stop Loss (%)</label><input style={inp} defaultValue="2.5" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+          <button style={saveBtn}>Save Risk Settings</button>
+        </div>
+        <div style={card}>
+          <div style={hdr}>Strategy</div>
+          <div style={{marginBottom:14}}>
+            <label style={lbl}>Trading Mode</label>
+            <div style={{display:'flex',gap:8}}>
+              {['Paper','Live'].map(m=><button key={m} style={{flex:1,padding:'9px',borderRadius:7,border:`1px solid ${m==='Paper'?t.accent:t.border}`,background:m==='Paper'?t.accentDim:'transparent',color:m==='Paper'?t.accent:t.textMuted,fontWeight:600,cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>{m}</button>)}
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+            <div><label style={lbl}>Scanner Interval</label><input style={inp} defaultValue="5m" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+            <div><label style={lbl}>HTF Cache (min)</label><input style={inp} defaultValue="15" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+          </div>
+          <div style={{marginBottom:16}}><label style={lbl}>Monitored Pairs</label><input style={inp} defaultValue="BTC ETH SOL BNB XRP DOGE AVAX LINK" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
+          <button style={saveBtn}>Save Strategy</button>
+        </div>
+        <div style={{...card,gridColumn:'span 2'}}>
+          <div style={hdr}>System Information</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+            {[{l:'WebSocket Push',v:'Every 5s'},{l:'REST Fallback',v:'Every 8s'},{l:'AI Retraining',v:'Every 12h'},{l:'Market Scanner',v:'Every 5 min'}].map((item,i)=>(
+              <div key={i} style={{padding:'14px',background:t.bg,borderRadius:8,border:`1px solid ${t.border}`}}>
+                <div style={{fontSize:13,fontWeight:700,color:t.accent}}>{item.v}</div>
+                <div style={{fontSize:11,color:t.textMuted,marginTop:3}}>{item.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+const NAV=[
+  {id:'dashboard',label:'Dashboard'},
+  {id:'positions',label:'Positions',badge:'2'},
+  {id:'history',label:'Trade History'},
+  {id:'analytics',label:'Analytics'},
+  {id:'logs',label:'Live Logs'},
+  {id:'settings',label:'Settings'},
+];
+
+function NavIcon({id,t,active}) {
+  const c=active?t.accent:t.textMuted;
+  const icons={
+    dashboard:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1" y="1" width="5.5" height="5.5" rx="1.5" fill={c}/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1.5" fill={c} opacity="0.6"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1.5" fill={c} opacity="0.6"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1.5" fill={c} opacity="0.35"/></svg>,
+    positions:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 11L5 7L8 9L13 3.5" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="13" cy="3.5" r="1.5" fill={c}/></svg>,
+    history:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2" y="3" width="11" height="1.5" rx="0.75" fill={c}/><rect x="2" y="6.75" width="7" height="1.5" rx="0.75" fill={c} opacity="0.6"/><rect x="2" y="10.5" width="9" height="1.5" rx="0.75" fill={c} opacity="0.4"/></svg>,
+    analytics:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="8.5" width="3" height="5" rx="1" fill={c} opacity="0.5"/><rect x="6" y="5.5" width="3" height="8" rx="1" fill={c} opacity="0.75"/><rect x="10.5" y="2.5" width="3" height="11" rx="1" fill={c}/></svg>,
+    logs:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="2" stroke={c} strokeWidth="1.4"/><path d="M5 5.5h1.5M5 8h5M5 10.5h3.5" stroke={c} strokeWidth="1.1" strokeLinecap="round"/><circle cx="8.5" cy="5.5" r="0.75" fill={c}/></svg>,
+    settings:<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="2.5" stroke={c} strokeWidth="1.4"/><path d="M7.5 1.5v2M7.5 11.5v2M1.5 7.5h2M11.5 7.5h2M3.3 3.3l1.4 1.4M10.3 10.3l1.4 1.4M3.3 11.7l1.4-1.4M10.3 4.7l1.4-1.4" stroke={c} strokeWidth="1.2" strokeLinecap="round"/></svg>,
   };
-  ws.onclose = () => {
-    setConn(false);
-    addLog('Live feed disconnected — reconnecting in 4s…', 'warn');
-    reconnectTimer = setTimeout(connect, 4000);
-  };
-  ws.onerror = () => {};  // suppress console noise; onclose fires after
-  ws.onmessage = (e) => {
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'state') applyState(msg.data);
-      if (msg.type === 'positions') updatePositions(msg.data);
-      if (msg.type === 'log') addLog(msg.data.msg, msg.data.level || 'info');
-      if (msg.type === 'signal') addLog(`Signal: ${msg.data.symbol} → ${msg.data.signal} (${(msg.data.confidence*100).toFixed(1)}%)`, 'info');
-    } catch (_) {}
-  };
-}
-connect();
-
-function setConn(online) {
-  const dot = document.getElementById('ws-dot');
-  const lbl = document.getElementById('ws-label');
-  dot.className = 'dot ' + (online ? 'online' : 'offline');
-  lbl.textContent = online ? 'Connected' : 'Reconnecting…';
+  return icons[id]||null;
 }
 
-// ── Poll REST API every 8 s ─────────────────────────────────────────────────
-async function pollStatus() {
-  try {
-    const r = await fetch('/api/status');
-    if (r.ok) applyState(await r.json()); // applyState sets lastUpdateTs
-  } catch (_) {}
-}
-async function pollTrades() {
-  try {
-    const r = await fetch('/api/trades?limit=30');
-    if (r.ok) renderTrades(await r.json());
-  } catch (_) {}
-}
-pollStatus(); pollTrades();
-setInterval(pollStatus, 8000);
-setInterval(pollTrades, 15000);
+function Sidebar({t,active,setActive,running,setRunning}) {
+  return (
+    <div style={{width:216,flexShrink:0,background:t.sidebar,borderRight:`1px solid ${t.sidebarBorder}`,display:'flex',flexDirection:'column',height:'100%'}}>
+      <div style={{padding:'18px 18px 14px',borderBottom:`1px solid ${t.sidebarBorder}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:9}}>
+          <div style={{width:28,height:28,borderRadius:7,background:t.accentDim,border:`1px solid ${t.accent}44`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 9.5L4.5 6L7 8L12.5 2.5" stroke={t.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 2.5h2.5V5" stroke={t.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          <div>
+            <div style={{fontSize:12,fontWeight:800,color:t.text,letterSpacing:'0.05em'}}>FUTURES BOT</div>
+            <div style={{fontSize:10,color:t.textMuted}}>Bybit Testnet</div>
+          </div>
+        </div>
+      </div>
 
-// ── State ───────────────────────────────────────────────────────────────────
-function applyState(s) {
-  state = s;
-  lastUpdateTs = Date.now();
-  tickRefresh(); // update immediately, don't wait for next tick
-  document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      <nav style={{padding:'8px 8px',flex:1,display:'flex',flexDirection:'column',gap:1,overflowY:'auto'}}>
+        {NAV.map(item=>{
+          const isActive=active===item.id;
+          return (
+            <button key={item.id} onClick={()=>setActive(item.id)} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:7,border:'none',background:isActive?t.navActive:'transparent',color:isActive?t.accent:t.textDim,cursor:'pointer',textAlign:'left',fontFamily:'inherit',fontSize:13,fontWeight:isActive?600:400,transition:'all 0.15s',width:'100%',borderLeft:isActive?`2px solid ${t.accent}`:'2px solid transparent'}}
+              onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background=t.cardHover;e.currentTarget.style.color=t.text;}}}
+              onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color=t.textDim;}}}>
+              <NavIcon id={item.id} t={t} active={isActive}/>
+              <span style={{flex:1}}>{item.label}</span>
+              {item.badge && <span style={{fontSize:10,fontWeight:700,color:t.green,background:t.greenDim,padding:'1px 6px',borderRadius:10}}>{item.badge}</span>}
+            </button>
+          );
+        })}
+      </nav>
 
-  // Mode badge
-  const modeBadge = document.getElementById('mode-badge');
-  modeBadge.textContent = (s.mode || 'paper').toUpperCase();
-  modeBadge.className = 'badge ' + (s.mode === 'live' ? 'live' : 'paper');
-
-  // Status badge + buttons
-  const running = s.isRunning;
-  const sb = document.getElementById('status-badge');
-  sb.textContent = running ? 'RUNNING' : 'STOPPED';
-  sb.className = 'badge ' + (running ? 'running' : 'stopped');
-  document.getElementById('btn-start').disabled = running;
-  document.getElementById('btn-stop').disabled = !running;
-
-  // Stats
-  const bal = s.walletBalances && s.walletBalances['USDT'];
-  setEl('s-balance', bal != null ? '$' + bal.toFixed(2) : '—');
-  // Realized P&L only — unrealized is shown in the open positions table
-  setPnl('s-daily', s.dailyPnL || 0);
-  setPnl('s-total', s.totalPnL || 0);
-
-  const wr = s.lifetimeWinRate;
-  const wrEl = document.getElementById('s-winrate');
-  wrEl.textContent = wr != null ? wr.toFixed(1) + '%' : '—';
-  wrEl.className = 'stat-val ' + (wr >= 50 ? 'pos' : 'neg');
-  setEl('s-winrate-sub', `Recent: ${s.recentWinRate != null ? s.recentWinRate.toFixed(1)+'%' : '—'}`);
-
-  setEl('s-open', s.openPositions ?? 0);
-  setEl('s-pairs', (s.monitoredPairs || []).length);
-  setEl('s-leverage-info', `${s.leverage ?? 3}× ${s.marginMode ?? 'isolated'}`);
-
-  updatePositions(s.positionDetails || []);
-  renderReadiness(s);
+      <div style={{padding:'12px',borderTop:`1px solid ${t.sidebarBorder}`}}>
+        <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:9,padding:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}><StatusDot active={running} t={t}/><span style={{fontSize:11,fontWeight:700,color:running?t.green:t.textMuted}}>{running?'RUNNING':'STOPPED'}</span></div>
+            <Badge t={t}>PAPER</Badge>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            <button onClick={()=>setRunning(true)} style={{padding:'7px',borderRadius:6,border:`1px solid ${running?t.border:t.green}`,background:running?'transparent':t.greenDim,color:running?t.textMuted:t.green,cursor:'pointer',fontSize:11,fontWeight:700,fontFamily:'inherit',transition:'all 0.15s'}}>▶ Start</button>
+            <button onClick={()=>setRunning(false)} style={{padding:'7px',borderRadius:6,border:`1px solid ${!running?t.border:t.red}`,background:!running?'transparent':t.redDim,color:!running?t.textMuted:t.red,cursor:'pointer',fontSize:11,fontWeight:700,fontFamily:'inherit',transition:'all 0.15s'}}>■ Stop</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function renderReadiness(s) {
-  const card = document.getElementById('readiness-card');
-  if (s.mode !== 'paper' || !s.readiness) { card.style.display = 'none'; return; }
-  card.style.display = '';
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+function NotificationsTray({t}) {
+  const [open,setOpen]=useState(false);
+  const [notes,setNotes]=useState(mockNotifications);
+  const unread=notes.filter(n=>!n.read).length;
+  const typeColor={trade:t.green,profit:t.green,loss:t.red,system:t.accent2,ai:t.accent};
+  const ref=useRef(null);
 
-  const r = s.readiness;
-  const score = r.score;
-  const t = r.thresholds;
+  useEffect(()=>{
+    function handler(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    document.addEventListener('mousedown',handler);
+    return()=>document.removeEventListener('mousedown',handler);
+  },[]);
 
-  // Score circle
-  const pctEl = document.getElementById('readiness-pct');
-  const circEl = document.getElementById('readiness-circle');
-  const lblEl  = document.getElementById('readiness-label');
-  pctEl.textContent = score + '%';
-
-  let tier, label;
-  if (score >= 100) { tier = 'ready'; label = '✅ Ready to Go Live!'; }
-  else if (score >= 67) { tier = 'high';  label = '🟣 Almost There — Keep Going'; }
-  else if (score >= 34) { tier = 'mid';   label = '🟡 Making Progress'; }
-  else                  { tier = 'low';   label = '🔴 Keep Paper Trading'; }
-
-  circEl.className = 'readiness-circle ' + tier;
-  lblEl.className  = 'readiness-label '  + tier;
-  lblEl.textContent = label;
-
-  // Checklist items
-  const items = [
-    {
-      key: 'trades',
-      pass: t.trades.pass,
-      label: `Closed trades: ${t.trades.value} / ${t.trades.target}`,
-      progress: Math.min(t.trades.value / t.trades.target, 1),
-    },
-    {
-      key: 'winRate',
-      pass: t.winRate.pass,
-      label: `Win rate: ${(t.winRate.value || 0).toFixed(1)}% (need ≥${t.winRate.target}%)`,
-      progress: Math.min((t.winRate.value || 0) / t.winRate.target, 1),
-    },
-    {
-      key: 'profitable',
-      pass: t.profitable.pass,
-      label: `Total P&L: ${t.profitable.value >= 0 ? '+' : ''}$${(t.profitable.value || 0).toFixed(2)} (must be > $0)`,
-      progress: t.profitable.pass ? 1 : 0,
-    },
-    {
-      key: 'modelTrained',
-      pass: t.modelTrained.pass,
-      label: `AI model trained: ${t.modelTrained.pass ? 'Yes' : 'Not yet'}`,
-      progress: t.modelTrained.pass ? 1 : 0,
-    },
-    {
-      key: 'modelFresh',
-      pass: t.modelFresh.pass,
-      label: `Model freshness: ${t.modelFresh.value >= 9999 ? 'Never' : t.modelFresh.value + 'h ago'} (need < ${t.modelFresh.target}h)`,
-      progress: t.modelFresh.value >= 9999 ? 0 : Math.max(0, 1 - t.modelFresh.value / t.modelFresh.target),
-    },
-    {
-      key: 'dailyHealth',
-      pass: t.dailyHealth.pass,
-      label: `Today's P&L healthy: ${t.dailyHealth.pass ? 'Yes' : 'Negative day'}`,
-      progress: t.dailyHealth.pass ? 1 : 0,
-    },
-  ];
-
-  const ul = document.getElementById('readiness-list');
-  ul.innerHTML = items.map(item => `
-    <li class="${item.pass ? 'pass' : 'fail'}">
-      <span class="rl-icon">${item.pass ? '✅' : '❌'}</span>
-      <span style="flex:1">${escHtml(item.label)}</span>
-      <div class="rl-bar-wrap"><div class="rl-bar" style="width:${(item.progress * 100).toFixed(0)}%"></div></div>
-    </li>`).join('');
+  return (
+    <div ref={ref} style={{position:'relative'}}>
+      <button onClick={()=>{setOpen(o=>!o);setNotes(n=>n.map(x=>({...x,read:true})));}} style={{background:'transparent',border:`1px solid ${open?t.accent:t.border}`,borderRadius:7,width:34,height:34,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',transition:'all 0.15s'}}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor=t.accent;}}
+        onMouseLeave={e=>{if(!open)e.currentTarget.style.borderColor=t.border;}}>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <path d="M7.5 1.5C5 1.5 3.5 3.5 3.5 6v2L2 10h11l-1.5-2V6C11.5 3.5 10 1.5 7.5 1.5Z" stroke={t.textDim} strokeWidth="1.3" fill="none"/>
+          <path d="M6.2 10.5c0 .7.6 1.3 1.3 1.3s1.3-.6 1.3-1.3" stroke={t.textDim} strokeWidth="1.2"/>
+        </svg>
+        {unread>0 && <span style={{position:'absolute',top:-3,right:-3,width:16,height:16,borderRadius:'50%',background:t.red,color:'#fff',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:`2px solid ${t.bg}`}}>{unread}</span>}
+      </button>
+      {open && (
+        <div style={{position:'absolute',top:42,right:0,width:300,background:t.sidebar,border:`1px solid ${t.border}`,borderRadius:10,boxShadow:'0 8px 32px rgba(0,0,0,0.5)',zIndex:400,overflow:'hidden',animation:'fadeUp 0.18s ease both'}}>
+          <div style={{padding:'12px 14px',borderBottom:`1px solid ${t.border}`,fontSize:11,fontWeight:700,color:t.textMuted,textTransform:'uppercase',letterSpacing:'0.08em'}}>Notifications</div>
+          {notes.map(n=>(
+            <div key={n.id} style={{padding:'11px 14px',borderBottom:`1px solid ${t.border}33`,display:'flex',gap:10,alignItems:'flex-start',transition:'background 0.12s'}}
+              onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div style={{width:7,height:7,borderRadius:'50%',background:typeColor[n.type]||t.accent,marginTop:4,flexShrink:0,boxShadow:`0 0 5px ${typeColor[n.type]||t.accent}`}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,color:t.text,lineHeight:1.4}}>{n.msg}</div>
+                <div style={{fontSize:10,color:t.textMuted,marginTop:2}}>{n.time}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
-function setPnl(id, val) {
-  const el = document.getElementById(id);
-  if (val == null) { el.textContent = '—'; el.className = 'stat-val'; return; }
-  el.textContent = (val >= 0 ? '+$' : '-$') + Math.abs(val).toFixed(2);
-  el.className = 'stat-val ' + (val >= 0 ? 'pos' : 'neg');
-}
-function setEl(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+// ─── TOPBAR ───────────────────────────────────────────────────────────────────
+const PAGE_TITLES={dashboard:'Dashboard',positions:'Open Positions',history:'Trade History',analytics:'Analytics',logs:'Live Logs',settings:'Settings'};
+const KB_HINTS={d:'Dashboard',p:'Positions',h:'History',a:'Analytics',l:'Logs',s:'Settings'};
 
-// ── Positions table ─────────────────────────────────────────────────────────
-function updatePositions(positions) {
-  const tbody = document.getElementById('pos-tbody');
-  if (!positions || positions.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No open positions</td></tr>';
-    return;
-  }
-  tbody.innerHTML = positions.map(p => {
-    const isShort = p.side === 'sell';
-    const dir = isShort ? 'SHORT' : 'LONG';
-    const cls = isShort ? 'short' : 'long';
-    const cur = p.currentPrice;
-    let pnlHtml = '—';
-    if (cur) {
-      const diff = isShort ? (p.entryPrice - cur) / p.entryPrice : (cur - p.entryPrice) / p.entryPrice;
-      const pct = (diff * 100).toFixed(2);
-      pnlHtml = `<span class="pnl ${diff >= 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${pct}%</span>`;
+function TopBar({t,active,running}) {
+  const [time,setTime]=useState(new Date());
+  const [showKb,setShowKb]=useState(false);
+  useEffect(()=>{const id=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(id);},[]);
+
+  return (
+    <div style={{height:52,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 22px',flexShrink:0,background:t.bg}}>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <span style={{fontSize:15,fontWeight:700,color:t.text}}>{PAGE_TITLES[active]}</span>
+        <span style={{fontSize:11,color:t.textMuted}}>v2.1.0</span>
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:14}}>
+        <div style={{display:'flex',alignItems:'center',gap:5}}><StatusDot active={running} t={t}/><span style={{fontSize:12,color:running?t.green:t.textMuted,fontWeight:600}}>{running?'Bot active':'Bot stopped'}</span></div>
+        <div style={{width:1,height:18,background:t.border}}/>
+        <span style={{fontSize:12,color:t.textMuted,fontFamily:'monospace'}}>{time.toLocaleTimeString('en-US',{hour12:false})}</span>
+        <div style={{padding:'4px 10px',borderRadius:6,background:t.accentDim,border:`1px solid ${t.accent}33`,fontSize:11,fontWeight:700,color:t.accent,letterSpacing:'0.05em'}}>TESTNET</div>
+        <NotificationsTray t={t}/>
+        {/* KB shortcuts hint */}
+        <button onClick={()=>setShowKb(o=>!o)} style={{background:'transparent',border:`1px solid ${showKb?t.accent:t.border}`,borderRadius:7,padding:'4px 10px',color:t.textMuted,fontSize:11,cursor:'pointer',fontFamily:'monospace',transition:'all 0.15s'}}
+          onMouseEnter={e=>e.currentTarget.style.borderColor=t.accent}
+          onMouseLeave={e=>{if(!showKb)e.currentTarget.style.borderColor=t.border;}}>⌨ Keys</button>
+        {showKb && (
+          <div style={{position:'absolute',top:56,right:22,background:t.sidebar,border:`1px solid ${t.border}`,borderRadius:9,padding:'14px',zIndex:300,boxShadow:'0 8px 28px rgba(0,0,0,0.5)',animation:'fadeUp 0.18s ease both',minWidth:180}}>
+            <div style={{fontSize:10,fontWeight:700,color:t.textMuted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Keyboard Shortcuts</div>
+            {Object.entries(KB_HINTS).map(([k,v])=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                <span style={{fontSize:12,color:t.textDim}}>{v}</span>
+                <kbd style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:4,padding:'2px 8px',fontSize:11,color:t.accent,fontFamily:'monospace',fontWeight:700}}>{k}</kbd>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "slate",
+  "compactMode": false
+}/*EDITMODE-END*/;
+
+const PAGE_KEYS={d:'dashboard',p:'positions',h:'history',a:'analytics',l:'logs',s:'settings'};
+
+function App() {
+  const [tweaks,setTweak]=useTweaks(TWEAK_DEFAULTS);
+  const [active,setActive]=useState('dashboard');
+  const t=THEMES[tweaks.theme]||THEMES.slate;
+  const {status,trades,liveLogs,wsConnected}=useLiveData();
+  const running=status?.isRunning??false;
+
+  async function handleStart() { try { await fetch('/api/start',{method:'POST'}); } catch(_){} }
+  async function handleStop()  { try { await fetch('/api/stop', {method:'POST'}); } catch(_){} }
+
+  // Keyboard navigation
+  useEffect(()=>{
+    function handler(e){
+      if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+      if(PAGE_KEYS[e.key]) setActive(PAGE_KEYS[e.key]);
     }
-    return `<tr>
-      <td><strong>${p.symbol}</strong></td>
-      <td><span class="tag ${cls}">${dir}</span></td>
-      <td>$${Number(p.entryPrice).toFixed(4)}</td>
-      <td>${cur ? '$' + Number(cur).toFixed(4) : '—'}</td>
-      <td>${pnlHtml}</td>
-    </tr>`;
-  }).join('');
+    window.addEventListener('keydown',handler);
+    return()=>window.removeEventListener('keydown',handler);
+  },[]);
+
+  const sections={dashboard:DashboardSection,positions:PositionsSection,history:HistorySection,analytics:AnalyticsSection,logs:LogsSection,settings:SettingsSection};
+  const CurrentSection=sections[active];
+  const sectionProps={t,setPage:setActive,status,trades,liveLogs,wsConnected};
+
+  return (
+    <div style={{display:'flex',height:'100vh',background:t.bg,color:t.text,overflow:'hidden',position:'relative'}}>
+      <Sidebar t={t} active={active} setActive={setActive} running={running} setRunning={v=>v?handleStart():handleStop()}/>
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <TopBar t={t} active={active} running={running}/>
+        <main style={{flex:1,overflowY:'auto',padding:tweaks.compactMode?'14px':'22px'}}>
+          <CurrentSection {...sectionProps}/>
+        </main>
+      </div>
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Theme">
+          <TweakRadio label="Color Theme" value={tweaks.theme} onChange={v=>setTweak('theme',v)} options={[{value:'slate',label:'Slate Pro'},{value:'terminal',label:'Terminal'},{value:'carbon',label:'Carbon'}]}/>
+        </TweakSection>
+        <TweakSection title="Layout">
+          <TweakToggle label="Compact Mode" value={tweaks.compactMode} onChange={v=>setTweak('compactMode',v)}/>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
 }
 
-// ── Trades table ────────────────────────────────────────────────────────────
-let pnlChart;
-function renderTrades(trades) {
-  document.getElementById('trades-updated').textContent = new Date().toLocaleTimeString();
-  const tbody = document.getElementById('trades-tbody');
-  if (!trades || trades.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No trades yet</td></tr>';
-    return;
-  }
-  tbody.innerHTML = trades.map(t => {
-    const side = t.side === 'buy' ? 'LONG' : 'SHORT';
-    const cls  = t.side === 'buy' ? 'buy' : 'sell';
-    // Prisma model uses realizedPnl, not pnl
-    const pnl  = t.realizedPnl ?? t.pnl;
-    const pnlHtml = pnl != null
-      ? `<span class="pnl ${pnl >= 0 ? 'pos' : 'neg'}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}</span>`
-      : '—';
-    // Prisma model uses exitTime, not closedAt
-    const dt = t.exitTime || t.closedAt || t.entryTime || t.createdAt;
-    const time = dt ? new Date(dt).toLocaleString() : '—';
-    const exit = t.exitPrice ? '$' + Number(t.exitPrice).toFixed(4) : t.status;
-    return `<tr>
-      <td style="white-space:nowrap;color:var(--muted)">${time}</td>
-      <td><strong>${t.symbol}</strong></td>
-      <td><span class="tag ${cls}">${side}</span></td>
-      <td>$${Number(t.entryPrice).toFixed(4)}</td>
-      <td>${exit}</td>
-      <td>${pnlHtml}</td>
-    </tr>`;
-  }).join('');
-
-  // P&L sparkline — last 20 closed trades with valid finite pnl
-  const closedWithPnl = trades
-    .filter(t => t.status === 'closed' || t.exitPrice)
-    .filter(t => { const v = parseFloat(t.realizedPnl ?? t.pnl); return Number.isFinite(v); })
-    .slice(0, 20).reverse();
-  updateChart(closedWithPnl);
-}
-
-function updateChart(trades) {
-  const labels = trades.map((_, i) => '#' + (i + 1));
-  const data   = trades.map(t => { const v = parseFloat(t.realizedPnl ?? t.pnl); return Number.isFinite(v) ? v : 0; });
-  const colors = data.map(v => v >= 0 ? 'rgba(34,211,165,.8)' : 'rgba(244,63,94,.8)');
-
-  if (pnlChart) {
-    pnlChart.data.labels = labels;
-    pnlChart.data.datasets[0].data = data;
-    pnlChart.data.datasets[0].backgroundColor = colors;
-    pnlChart.update('none');
-  } else {
-    const ctx = document.getElementById('pnl-chart').getContext('2d');
-    pnlChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          data,
-          backgroundColor: colors,
-          borderRadius: 4,
-          borderSkipped: false,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: {
-          callbacks: { label: ctx => (ctx.raw >= 0 ? '+$' : '-$') + Math.abs(ctx.raw).toFixed(2) }
-        }},
-        scales: {
-          x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', font: { size: 10 } } },
-          y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', font: { size: 10 },
-            callback: v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2)
-          }}
-        }
-      }
-    });
-  }
-  document.getElementById('chart-updated').textContent = new Date().toLocaleTimeString();
-}
-
-// ── Log stream ──────────────────────────────────────────────────────────────
-function addLog(msg, level = 'info') {
-  const wrap = document.getElementById('log-wrap');
-  const line = document.createElement('div');
-  line.className = 'log-line';
-  const t = new Date().toLocaleTimeString();
-  line.innerHTML = `<span class="log-time">${t}</span><span class="log-lvl ${level}">[${level.toUpperCase()}]</span><span class="log-msg">${escHtml(msg)}</span>`;
-  wrap.prepend(line);
-  logCount++;
-  document.getElementById('log-count').textContent = logCount + ' entries';
-  if (wrap.children.length > 80) wrap.removeChild(wrap.lastChild);
-}
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-addLog('Dashboard ready', 'info');
-
-// ── Bot controls ────────────────────────────────────────────────────────────
-async function botStart() {
-  document.getElementById('btn-start').disabled = true;
-  try {
-    const r = await fetch('/api/start', { method: 'POST' });
-    const j = await r.json();
-    if (j.ok) addLog('Bot start command sent', 'info');
-    else addLog('Start failed: ' + j.message, 'error');
-  } catch (e) { addLog('Start request failed: ' + e.message, 'error'); }
-  setTimeout(pollStatus, 1500);
-}
-async function botStop() {
-  document.getElementById('btn-stop').disabled = true;
-  try {
-    const r = await fetch('/api/stop', { method: 'POST' });
-    const j = await r.json();
-    if (j.ok) addLog('Bot stop command sent', 'warn');
-    else addLog('Stop failed: ' + j.message, 'error');
-  } catch (e) { addLog('Stop request failed: ' + e.message, 'error'); }
-  setTimeout(pollStatus, 1500);
-}
-
-// ── Settings ────────────────────────────────────────────────────────────────
-function cfgRows(pairs) {
-  return pairs.map(([k, v]) =>
-    `<div class="config-row"><span class="config-key">${k}</span><span class="config-val">${v}</span></div>`
-  ).join('');
-}
-
-async function loadConfig() {
-  try {
-    const r = await fetch('/api/config');
-    if (!r.ok) return;
-    const c = await r.json();
-    document.getElementById('config-loaded').textContent = new Date().toLocaleTimeString();
-
-    document.getElementById('cfg-risk').innerHTML = cfgRows([
-      ['Min Position Size', '$' + c.minPositionSize],
-      ['Max Position Size', '$' + c.maxPositionSize],
-      ['Position Size %',   c.positionSizePercent + '% of capital'],
-      ['Stop Loss',         c.stopLossPercentage + '%'],
-      ['Take Profit',       c.takeProfitPercentage + '%'],
-      ['Max Daily Loss',    '$' + c.maxDailyLoss],
-      ['Max Open Positions', c.maxOpenPositions],
-    ]);
-
-    document.getElementById('cfg-futures').innerHTML = cfgRows([
-      ['Trading Mode',   c.mode.toUpperCase()],
-      ['Leverage',       c.leverage + 'x'],
-      ['Margin Mode',    c.marginMode],
-      ['Timeframe',      c.timeframe],
-    ]);
-
-    document.getElementById('cfg-strategy').innerHTML = cfgRows([
-      ['Trailing Activation', '+' + c.trailingActivation + '%'],
-      ['Trailing Distance',   c.trailingDistance + '%'],
-      ['Break-Even At',       '+' + c.breakEvenActivation + '%'],
-      ['Stale Position Exit', c.stalePositionHours + 'h'],
-    ]);
-
-    document.getElementById('cfg-scanner').innerHTML = cfgRows([
-      ['Auto Pair Selection', c.autoPairSelection ? 'Enabled' : 'Disabled'],
-      ['Max Active Pairs',    c.maxActivePairs],
-      ['Scan Interval',       c.scanIntervalMinutes + ' min'],
-      ['Min Volume (24h)',    '$' + (c.minDailyVolumeUSD / 1e6).toFixed(1) + 'M'],
-      ['Seed Pairs',          (c.tradingPairs || []).join(', ')],
-    ]);
-
-    document.getElementById('cfg-ai').innerHTML = cfgRows([
-      ['ML Confidence Threshold', (c.mlConfidenceThreshold * 100).toFixed(0) + '%'],
-      ['Retrain Interval',        '12 hours (auto)'],
-      ['Training Pairs',          'BTC ETH SOL BNB XRP DOGE AVAX LINK'],
-      ['HTF Cache TTL',           '15 min (1h + 4h EMA)'],
-      ['Fear & Greed Cache',      '1 hour'],
-      ['Funding Rate Cache',      '5 min'],
-    ]);
-
-    // Pre-fill editable input with current min size
-    document.getElementById('input-min-size').value = c.minPositionSize;
-  } catch (_) {}
-}
-
-async function saveMinSize() {
-  const val = parseFloat(document.getElementById('input-min-size').value);
-  const status = document.getElementById('save-status');
-  if (!val || val <= 0) { status.textContent = '⚠️ Enter a valid number'; return; }
-  status.textContent = 'Saving…';
-  try {
-    const r = await fetch('/api/settings/min-size', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: val }),
-    });
-    const j = await r.json();
-    if (j.ok) {
-      status.style.color = 'var(--green)';
-      status.textContent = '✅ Saved — takes effect immediately';
-      addLog(`Min position size updated to $${val}`, 'info');
-      setTimeout(() => { status.textContent = ''; status.style.color = ''; }, 4000);
-    } else {
-      status.style.color = 'var(--red)';
-      status.textContent = '❌ ' + (j.message || 'Failed');
-    }
-  } catch (e) {
-    status.style.color = 'var(--red)';
-    status.textContent = '❌ Request failed';
-  }
-}
-
-loadConfig();
-
-// ── Analytics ────────────────────────────────────────────────────────────────
-let anBarEarned, anBarLost, anPieEarned, anPieLost;
-
-async function loadAnalytics() {
-  try {
-    const r = await fetch('/api/analytics');
-    if (!r.ok) return;
-    const d = await r.json();
-    renderAnalytics(d);
-  } catch (_) {}
-}
-
-function renderAnalytics(d) {
-  const L = d.long  || { earned:0, lost:0, wins:0, losses:0, total:0 };
-  const S = d.short || { earned:0, lost:0, wins:0, losses:0, total:0 };
-
-  // Summary cards
-  setEl('an-long-earned',  '+$' + L.earned.toFixed(2));
-  setEl('an-long-lost',    '-$' + L.lost.toFixed(2));
-  setEl('an-long-wins',    L.wins + ' wins / ' + L.total + ' trades');
-  setEl('an-long-losses',  L.losses + ' losses / ' + L.total + ' trades');
-  setEl('an-short-earned', '+$' + S.earned.toFixed(2));
-  setEl('an-short-lost',   '-$' + S.lost.toFixed(2));
-  setEl('an-short-wins',   S.wins + ' wins / ' + S.total + ' trades');
-  setEl('an-short-losses', S.losses + ' losses / ' + S.total + ' trades');
-
-  document.getElementById('an-bar-updated').textContent = new Date().toLocaleTimeString();
-
-  const GREEN = 'rgba(34,211,165,.85)';
-  const RED   = 'rgba(244,63,94,.85)';
-  const G_DIM = 'rgba(34,211,165,.35)';
-  const R_DIM = 'rgba(244,63,94,.35)';
-
-  // ── Bar: Earnings ──
-  const earnedData = { labels: ['Long', 'Short'], datasets: [{ data: [L.earned, S.earned], backgroundColor: [GREEN, G_DIM], borderRadius: 6, borderSkipped: false }] };
-  const barOpts = (title, prefix) => ({
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => prefix + '$' + Math.abs(ctx.raw).toFixed(2) } } },
-    scales: {
-      x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b' } },
-      y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', callback: v => '$' + Math.abs(v).toFixed(2) } }
-    }
-  });
-
-  if (anBarEarned) { anBarEarned.data = earnedData; anBarEarned.update('none'); }
-  else { anBarEarned = new Chart(document.getElementById('an-bar-earned').getContext('2d'), { type: 'bar', data: earnedData, options: barOpts('Earned: ', '+') }); }
-
-  const lostData = { labels: ['Long', 'Short'], datasets: [{ data: [L.lost, S.lost], backgroundColor: [R_DIM, RED], borderRadius: 6, borderSkipped: false }] };
-  if (anBarLost) { anBarLost.data = lostData; anBarLost.update('none'); }
-  else { anBarLost = new Chart(document.getElementById('an-bar-lost').getContext('2d'), { type: 'bar', data: lostData, options: barOpts('Lost: ', '-') }); }
-
-  // ── Pie: Profit share ──
-  const totalEarned = L.earned + S.earned;
-  const pieEarnedData = {
-    labels: ['Long', 'Short'],
-    datasets: [{ data: totalEarned > 0 ? [L.earned, S.earned] : [1, 1], backgroundColor: [GREEN, G_DIM], borderWidth: 2, borderColor: '#0e1420' }]
-  };
-  const pieOpts = (fmt) => ({
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 }, padding: 16 } },
-      tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx) } }
-    }
-  });
-  const pctFmt = (ctx) => {
-    const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-    return sum > 0 ? ((ctx.raw / sum) * 100).toFixed(1) + '%  ($' + ctx.raw.toFixed(2) + ')' : '0%';
-  };
-  if (anPieEarned) { anPieEarned.data = pieEarnedData; anPieEarned.update('none'); }
-  else { anPieEarned = new Chart(document.getElementById('an-pie-earned').getContext('2d'), { type: 'doughnut', data: pieEarnedData, options: pieOpts(pctFmt) }); }
-
-  const totalLost = L.lost + S.lost;
-  const pieLostData = {
-    labels: ['Long', 'Short'],
-    datasets: [{ data: totalLost > 0 ? [L.lost, S.lost] : [1, 1], backgroundColor: [R_DIM, RED], borderWidth: 2, borderColor: '#0e1420' }]
-  };
-  if (anPieLost) { anPieLost.data = pieLostData; anPieLost.update('none'); }
-  else { anPieLost = new Chart(document.getElementById('an-pie-lost').getContext('2d'), { type: 'doughnut', data: pieLostData, options: pieOpts(pctFmt) }); }
-
-  // ── AI Learning status ──
-  const ownCount = d.ownFeatureCount ?? 0;
-  const totalClosed = d.totalClosed ?? 0;
-  const coveragePct = totalClosed > 0 ? ((ownCount / totalClosed) * 100).toFixed(0) : 0;
-  const isActive = ownCount >= 10;
-  const statusEl = document.getElementById('an-learning-status');
-  statusEl.textContent = ownCount + ' trades';
-  statusEl.className = 'ai-stat-val ' + (isActive ? 'active' : 'inactive');
-  setEl('an-feature-pct', coveragePct + '%');
-  setEl('an-total-closed', totalClosed);
-
-  // ── Suggestions ──
-  renderSuggestions(L, S, ownCount, totalClosed);
-}
-
-function renderSuggestions(L, S, ownCount, totalClosed) {
-  const suggestions = [];
-
-  const longWR  = L.total > 0 ? (L.wins / L.total) * 100 : null;
-  const shortWR = S.total > 0 ? (S.wins / S.total) * 100 : null;
-  const longNet  = L.earned - L.lost;
-  const shortNet = S.earned - S.lost;
-
-  // Not enough data yet
-  if (totalClosed < 10) {
-    suggestions.push({ icon: '⏳', title: 'Gather more trades first', body: `Only ${totalClosed} closed trades. Need at least 10–20 to draw meaningful conclusions from analytics.` });
-  }
-
-  // Short losing money
-  if (shortNet < -5 && S.total >= 3) {
-    suggestions.push({ icon: '📉', title: 'Shorts are net negative', body: `Short trades lost $${Math.abs(shortNet).toFixed(2)} net. Consider raising the quality score threshold for SHORT entries, or temporarily disable shorts if the market is in a strong uptrend.` });
-  }
-
-  // Short win rate very low
-  if (shortWR !== null && shortWR < 35 && S.total >= 5) {
-    suggestions.push({ icon: '🔻', title: 'Short win rate is low (' + shortWR.toFixed(0) + '%)', body: 'The 4h HTF filter should block most counter-trend shorts. Check that 4h EMA alignment is working — if HTF data returns null, the bot awards neutral points and may enter bad shorts.' });
-  }
-
-  // Long also losing
-  if (longNet < -5 && L.total >= 3) {
-    suggestions.push({ icon: '📊', title: 'Longs are also net negative', body: `Long trades lost $${Math.abs(longNet).toFixed(2)} net. Check ATR TP multiplier (4× ATR is a high bar). Partial TP at ATR×2 should lock in some gains — verify it fired in the trade log.` });
-  }
-
-  // Win rate high on one side, scale up
-  if (longWR !== null && longWR >= 60 && longNet > 0) {
-    suggestions.push({ icon: '🚀', title: 'Longs performing well (' + longWR.toFixed(0) + '% WR)', body: 'Long edge looks solid. Once you have 30 trades, consider slightly raising position size % for longs or lowering the confidence threshold for LONG-only if the market is trending up.' });
-  }
-
-  // Own-trade learning not active
-  if (ownCount < 10) {
-    suggestions.push({ icon: '🧠', title: 'Own-trade learning not yet active', body: `Need ≥10 closed trades with stored features (have ${ownCount}). Once active, the AI retrains on what YOUR bot actually wins/loses at — this usually improves accuracy significantly.` });
-  } else {
-    suggestions.push({ icon: '✅', title: 'Own-trade learning is active', body: `${ownCount} of ${totalClosed} closed trades have stored features and are mixed into AI retraining at 30% weight. Model improves automatically every 12h.` });
-  }
-
-  // General suggestions always shown
-  suggestions.push({ icon: '💡', title: 'Improve: add RSI divergence check', body: 'Before entering a SHORT, confirm RSI is making lower highs while price makes higher highs (bearish divergence). Reduces false short entries in ranging markets.' });
-  suggestions.push({ icon: '💡', title: 'Improve: tighten funding filter for shorts', body: 'If funding rate is positive (longs paying shorts), that means a short squeeze is more likely. Consider only entering shorts when funding < 0.' });
-  suggestions.push({ icon: '💡', title: 'Improve: use volume profile for entry timing', body: 'Enter only when volume is above 1.5× average AND the last candle closes strongly (close near high for longs, near low for shorts). This reduces entering on fakeouts.' });
-
-  const ul = document.getElementById('an-suggestions');
-  ul.innerHTML = suggestions.map(s =>
-    `<li><span class="sug-icon">${escHtml(s.icon)}</span><div><span class="sug-title">${escHtml(s.title)}</span><span class="sug-body">${escHtml(s.body)}</span></div></li>`
-  ).join('');
-  setEl('an-suggestions-src', 'Updated ' + new Date().toLocaleTimeString());
-}
-
-// Auto-load analytics on startup (for when page opens on analytics tab)
-loadAnalytics();
-
-// ── Tab nav (sidebar handles visibility via CSS, all sections always rendered) ──
-function showTab(tab) {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  const titles = { dashboard: 'Dashboard', positions: 'Open Positions', trades: 'Trade History', analytics: 'Analytics', logs: 'Live Logs', settings: 'Settings' };
-  document.getElementById('page-title').textContent = titles[tab] || tab;
-  // Scroll the relevant card into view
-  const map = { positions: 'tab-positions', trades: 'tab-trades', analytics: 'tab-analytics', logs: 'tab-logs', settings: 'tab-settings' };
-  if (map[tab]) document.getElementById(map[tab]).scrollIntoView({ behavior: 'smooth', block: 'start' });
-  else window.scrollTo({ top: 0, behavior: 'smooth' });
-  // Refresh analytics when tab opened
-  if (tab === 'analytics') loadAnalytics();
-}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
