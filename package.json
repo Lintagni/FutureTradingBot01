@@ -38,6 +38,7 @@
     "express-session": "^1.19.0",
     "ml-random-forest": "^2.1.0",
     "node-telegram-bot-api": "^0.66.0",
+    "session-file-store": "^1.5.0",
     "technicalindicators": "^3.1.0",
     "winston": "^3.17.0",
     "ws": "^8.18.0"
@@ -48,6 +49,7 @@
     "@types/express-session": "^1.19.0",
     "@types/node": "^22.10.5",
     "@types/node-telegram-bot-api": "^0.64.7",
+    "@types/session-file-store": "^1.2.6",
     "@types/ws": "^8.5.13",
     "cross-env": "^10.1.0",
     "prisma": "^5.22.0",

@@ -165,7 +165,13 @@ function useLiveData() {
 
   // REST status fallback
   useEffect(() => {
-    async function poll() { try { const r=await fetch('/api/status'); if(r.ok) setStatus(await r.json()); } catch(_){} }
+    async function poll() {
+      try {
+        const r=await fetch('/api/status');
+        if(r.status===401){window.location.href='/login.html';return;}
+        if(r.ok) setStatus(await r.json());
+      } catch(_){}
+    }
     poll();
     const id = setInterval(poll, 8000);
     return () => clearInterval(id);
@@ -173,9 +179,15 @@ function useLiveData() {
 
   // Fetch trades
   useEffect(() => {
-    async function fetchTrades() { try { const r=await fetch('/api/trades?limit=100'); if(r.ok) setTrades((await r.json()).map(mapTrade)); } catch(_){} }
+    async function fetchTrades() {
+      try {
+        const r=await fetch('/api/trades?limit=100');
+        if(r.status===401){window.location.href='/login.html';return;}
+        if(r.ok) setTrades((await r.json()).map(mapTrade));
+      } catch(_){}
+    }
     fetchTrades();
-    const id = setInterval(fetchTrades, 15000);
+    const id = setInterval(fetchTrades, 8000);
     return () => clearInterval(id);
   }, []);
 

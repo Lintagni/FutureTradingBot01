@@ -5,9 +5,12 @@ import path from 'path';
 import fs from 'fs';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
+import FileStore from 'session-file-store';
 import { logger } from './logger';
 import { config } from '../config/trading.config';
 import { tradeRepository } from '../database/TradeRepository';
+
+const FileStoreSession = FileStore(session);
 
 // Credentials: persisted to volume so changes survive restarts
 const CREDS_FILE = '/data/dashboard-credentials.json';
@@ -96,6 +99,12 @@ export class WebServer {
         this.app.use(express.json());
         this.app.use(cookieParser());
         this.app.use(session({
+            store: new FileStoreSession({
+                path: '/data/sessions',
+                ttl: 86400,       // 24 h in seconds
+                retries: 1,
+                logFn: () => {},  // silence verbose file-store logs
+            }),
             secret: process.env.SESSION_SECRET || 'futures-bot-dev-secret',
             resave: false,
             saveUninitialized: false,
