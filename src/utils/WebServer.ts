@@ -2,9 +2,17 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
+import session from 'express-session';
+import cookieParser from 'cookie-parser';
 import { logger } from './logger';
 import { config } from '../config/trading.config';
 import { tradeRepository } from '../database/TradeRepository';
+
+declare module 'express-session' {
+    interface SessionData {
+        authenticated: boolean;
+    }
+}
 
 export class WebServer {
     private app: express.Application;
@@ -15,7 +23,6 @@ export class WebServer {
     private broadcastInterval: NodeJS.Timeout | null = null;
 
     constructor() {
-        // Railway injects PORT automatically; fall back to 3000 for local dev
         this.port = parseInt(process.env.PORT || '3000', 10);
         this.app = express();
         this.server = http.createServer(this.app);
@@ -26,10 +33,8 @@ export class WebServer {
         this.setupWebSocket();
     }
 
-    /** Call this after the TradingEngine is ready so API endpoints serve real data */
     registerEngine(engine: any) {
         this.engine = engine;
-        // Push fresh state to all connected dashboards every 5 s
         this.broadcastInterval = setInterval(() => this.broadcastState(), 5000);
     }
 
@@ -64,10 +69,47 @@ export class WebServer {
 
     private setupMiddleware() {
         this.app.use(express.json());
+        this.app.use(cookieParser());
+        this.app.use(session({
+            secret: process.env.SESSION_SECRET || 'futures-bot-dev-secret',
+            resave: false,
+            saveUninitialized: false,
+            cookie: { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }, // 24 h
+        }));
+        // Static files served before auth — login.html, tweaks-panel.jsx etc. are public
         this.app.use(express.static(path.join(process.cwd(), 'dashboard')));
     }
 
+    private requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+        if (req.session.authenticated) return next();
+        if (req.path.startsWith('/api/')) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        res.redirect('/login.html');
+    }
+
     private setupRoutes() {
+        // ── Public auth routes (no requireAuth) ─────────────────────────────
+        this.app.post('/api/login', (req, res) => {
+            const { username, password } = req.body;
+            const validUser = process.env.DASHBOARD_USERNAME || 'admin';
+            const validPass = process.env.DASHBOARD_PASSWORD || 'changeme';
+            if (username === validUser && password === validPass) {
+                req.session.authenticated = true;
+                res.json({ ok: true });
+            } else {
+                res.status(401).json({ ok: false, message: 'Invalid credentials' });
+            }
+        });
+
+        this.app.post('/api/logout', (req, res) => {
+            req.session.destroy(() => res.json({ ok: true }));
+        });
+
+        // ── Auth gate — everything below is protected ───────────────────────
+        this.app.use(this.requireAuth.bind(this));
+
         // ── Status ──────────────────────────────────────────────────────────
         this.app.get('/api/status', async (_req, res) => {
             if (!this.engine) {
@@ -82,7 +124,7 @@ export class WebServer {
             }
         });
 
-        // ── Analytics: long/short breakdown + own-trade learning status ─────
+        // ── Analytics ───────────────────────────────────────────────────────
         this.app.get('/api/analytics', async (_req, res) => {
             try {
                 const breakdown = await tradeRepository.getLongShortBreakdown('futures');
@@ -172,15 +214,13 @@ export class WebServer {
         this.wss.on('connection', (ws: WebSocket) => {
             logger.info('Dashboard client connected');
             ws.send(JSON.stringify({ type: 'connected', mode: config.mode }));
-            // Send current state immediately on connect
             this.broadcastState();
 
-            // Keep-alive pings every 10 s — Fly.io proxy needs frequent pings to keep WS alive
             const pingInterval = setInterval(() => {
                 if (ws.readyState === WebSocket.OPEN) ws.ping();
             }, 10000);
 
-            ws.on('pong', () => {}); // connection confirmed alive
+            ws.on('pong', () => {});
             ws.on('close', () => {
                 clearInterval(pingInterval);
                 logger.info('Dashboard client disconnected');
@@ -197,7 +237,6 @@ export class WebServer {
         });
     }
 
-    /** Push a log line to all connected dashboards */
     public pushLog(msg: string, level: 'info' | 'warn' | 'error' = 'info') {
         this.broadcast('log', { msg, level });
     }

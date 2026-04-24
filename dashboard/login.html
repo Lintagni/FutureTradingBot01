@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FUTURES BOT — Sign In</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #0b0f1a;
+    color: #e8f0fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,201,177,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,201,177,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* Glow blob */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,201,177,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative;
+    width: 380px;
+    background: #0d1525;
+    border: 1px solid #1a2744;
+    border-radius: 16px;
+    padding: 40px 36px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,201,177,0.06);
+    animation: fadeUp 0.3s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { transform: translateY(16px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .logo-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(0,201,177,0.12);
+    border: 1px solid rgba(0,201,177,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .logo-text { line-height: 1.2; }
+  .logo-title { font-size: 15px; font-weight: 800; color: #e8f0fe; letter-spacing: 0.06em; }
+  .logo-sub   { font-size: 11px; color: #5a7399; margin-top: 1px; }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #e8f0fe;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #5a7399;
+    margin-bottom: 28px;
+  }
+
+  .field { margin-bottom: 16px; }
+  label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #5a7399;
+    margin-bottom: 7px;
+  }
+  input {
+    width: 100%;
+    background: #0b0f1a;
+    border: 1px solid #1e2d4a;
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: #e8f0fe;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus {
+    border-color: #00c9b1;
+    box-shadow: 0 0 0 3px rgba(0,201,177,0.1);
+  }
+  input::placeholder { color: #3a4f6e; }
+
+  .error {
+    display: none;
+    background: rgba(244,63,94,0.1);
+    border: 1px solid rgba(244,63,94,0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #f43f5e;
+    margin-bottom: 16px;
+    align-items: center;
+    gap: 8px;
+  }
+  .error.visible { display: flex; }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: #00c9b1;
+    color: #0b0f1a;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+  }
+  .btn:hover   { opacity: 0.9; }
+  .btn:active  { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .footer {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #1a2744;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .footer-text { font-size: 11px; color: #5a7399; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-row">
+    <div class="logo-icon">
+      <svg width="20" height="20" viewBox="0 0 14 14" fill="none">
+        <path d="M1.5 9.5L4.5 6L7 8L12.5 2.5" stroke="#00c9b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 2.5h2.5V5" stroke="#00c9b1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <div class="logo-title">FUTURES BOT</div>
+      <div class="logo-sub">Bybit Testnet</div>
+    </div>
+  </div>
+
+  <h1>Sign in</h1>
+  <p class="subtitle">Enter your credentials to access the trading dashboard.</p>
+
+  <div class="error" id="errBox">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0">
+      <circle cx="7" cy="7" r="6.5" stroke="#f43f5e" stroke-width="1.2"/>
+      <path d="M7 4v3.5" stroke="#f43f5e" stroke-width="1.4" stroke-linecap="round"/>
+      <circle cx="7" cy="10" r="0.8" fill="#f43f5e"/>
+    </svg>
+    <span id="errMsg">Invalid username or password.</span>
+  </div>
+
+  <form id="loginForm">
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" placeholder="Enter username" autocomplete="username" required/>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" placeholder="Enter password" autocomplete="current-password" required/>
+    </div>
+    <button class="btn" type="submit" id="submitBtn">Sign In</button>
+  </form>
+
+  <div class="footer">
+    <div class="dot"></div>
+    <span class="footer-text">Secured — private trading dashboard</span>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('loginForm');
+  const errBox = document.getElementById('errBox');
+  const errMsg = document.getElementById('errMsg');
+  const btn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.remove('visible');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        window.location.href = '/';
+      } else {
+        errMsg.textContent = data.message || 'Invalid username or password.';
+        errBox.classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+        document.getElementById('password').value = '';
+        document.getElementById('password').focus();
+      }
+    } catch (_) {
+      errMsg.textContent = 'Network error — please try again.';
+      errBox.classList.add('visible');
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+  });
+
+  // Clear error on input
+  document.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', () => errBox.classList.remove('visible'));
+  });
+</script>
+</body>
+</html>

@@ -290,7 +290,7 @@ function PnLChart({trades,t}) {
     const finalVal=cumData[cumData.length-1]??0;
     const lineColor=finalVal>=0?th.green:th.red;
     // Per-dot coloring: green dot = that trade was profit, red = loss
-    const dotColors=sorted.map(tr=>tr.pnl>=0?th.green:th.red);
+    const dotColors=sorted.map(tr=>tr.pnl>0?th.green:th.red);
     chart.current.data.labels=sorted.map(tr=>tr.symbol.replace('USDT',''));
     chart.current.data.datasets[0].data=cumData;
     chart.current.data.datasets[0].borderColor=lineColor;
@@ -1101,6 +1101,12 @@ function TopBar({t,active,running}) {
         <span style={{fontSize:12,color:t.textMuted,fontFamily:'monospace'}}>{time.toLocaleTimeString('en-US',{hour12:false})}</span>
         <div style={{padding:'4px 10px',borderRadius:6,background:t.accentDim,border:`1px solid ${t.accent}33`,fontSize:11,fontWeight:700,color:t.accent,letterSpacing:'0.05em'}}>TESTNET</div>
         <NotificationsTray t={t}/>
+        <button onClick={async()=>{await fetch('/api/logout',{method:'POST'});window.location.href='/login.html';}}
+          style={{background:'transparent',border:`1px solid ${t.border}`,borderRadius:7,padding:'4px 10px',color:t.textMuted,fontSize:11,cursor:'pointer',fontFamily:'inherit',transition:'all 0.15s'}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor=t.red;e.currentTarget.style.color=t.red;}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor=t.border;e.currentTarget.style.color=t.textMuted;}}>
+          Sign out
+        </button>
         {/* KB shortcuts hint */}
         <button onClick={()=>setShowKb(o=>!o)} style={{background:'transparent',border:`1px solid ${showKb?t.accent:t.border}`,borderRadius:7,padding:'4px 10px',color:t.textMuted,fontSize:11,cursor:'pointer',fontFamily:'monospace',transition:'all 0.15s'}}
           onMouseEnter={e=>e.currentTarget.style.borderColor=t.accent}
