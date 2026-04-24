@@ -249,7 +249,7 @@ function PnLChart({trades,t}) {
         scales:{x:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},maxTicksLimit:10}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
     });
     return()=>{if(chart.current)chart.current.destroy();};
-  },[t]);
+  },[t,trades]);
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
@@ -271,7 +271,7 @@ function DirectionChart({t,trades=[]}) {
         scales:{x:{grid:{display:false},ticks:{color:t.textMuted,font:{size:10}}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
     });
     return()=>{if(chart.current)chart.current.destroy();};
-  },[t]);
+  },[t,trades]);
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
@@ -294,7 +294,7 @@ function WinRateChart({t,trades=[]}) {
 function HeatmapCalendar({t,trades=[]}) {
   const heatmap = useMemo(()=>{
     const map={};
-    trades.forEach(tr=>{ if(!tr.exit) return; const d=new Date(tr.exit||tr.time).toDateString(); map[d]=(map[d]||0)+tr.pnl; });
+    trades.forEach(tr=>{ if(!tr.time) return; const d=new Date(tr.time).toDateString(); map[d]=(map[d]||0)+tr.pnl; });
     const days=[];
     for(let i=89;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push({date:d,pnl:+(map[d.toDateString()]||0).toFixed(2)}); }
     return days;
@@ -630,7 +630,7 @@ function PositionsSection({t,status}) {
           />
         )}
       </div>
-      <CloseModal pos={closeTarget} t={t} onClose={()=>setCloseTarget(null)} onConfirm={p=>setClosed(c=>[...c,p.symbol])}/>
+      <CloseModal pos={closeTarget} t={t} onClose={()=>setCloseTarget(null)} onConfirm={()=>{}}/>
     </div>
   );
 }
@@ -956,7 +956,7 @@ function Sidebar({t,active,setActive,running,setRunning}) {
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 function NotificationsTray({t}) {
   const [open,setOpen]=useState(false);
-  const [notes,setNotes]=useState(mockNotifications);
+  const [notes,setNotes]=useState([]);
   const unread=notes.filter(n=>!n.read).length;
   const typeColor={trade:t.green,profit:t.green,loss:t.red,system:t.accent2,ai:t.accent};
   const ref=useRef(null);
