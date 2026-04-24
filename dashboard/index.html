@@ -578,6 +578,8 @@ function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
     return [...closedTrades].reverse().map(tr=>{total++;if(tr.pnl>0)wins++;return total>0?wins/total*100:0;});
   },[closedTrades]);
 
+  const last20PnL = useMemo(()=>closedTrades.slice(0,20).reduce((a,b)=>a+b.pnl,0),[closedTrades]);
+
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
   const [drawerTrade,setDrawerTrade]=useState(null);
   const positions = (status?.positionDetails||[]).map(p=>mapPosition(p, status?.leverage));
@@ -606,7 +608,7 @@ function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <div>
               <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Cumulative P&L</div>
-              <div style={{fontSize:22,fontWeight:700,color:totalPnL>=0?t.green:t.red,marginTop:4}}>{fmt(totalPnL)}</div>
+              <div style={{fontSize:22,fontWeight:700,color:last20PnL>=0?t.green:t.red,marginTop:4}}>{fmt(last20PnL)}</div>
             </div>
             <Badge color="green" t={t}>Last 20 Trades</Badge>
           </div>
