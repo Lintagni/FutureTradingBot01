@@ -104,96 +104,103 @@ export class AutoRetrainer {
             // Training TP = ATR×2 (matches partial-TP trigger, ~50% natural hit rate).
             // Old ATR×4 only hit ~30% → model learned "always loss" and was useless.
             const ATR_TP_MULT = 2.0;
-            const LOOKAHEAD = 48; // was 36 — more room to reach ATR×2
+            const LOOKAHEAD = 48;
 
-            // Fetch data from multiple pairs
-            for (const symbol of this.trainingPairs) {
-                try {
-                    const candles = await exchange.fetchOHLCV(symbol, config.timeframe, 400);
+            // Fetch all pairs in parallel — sequential fetches with Bybit→Kraken fallback
+            // were stacking up to 5+ minutes; parallel cuts it to the slowest single fetch.
+            logger.info(`🔄 AutoRetrainer: Fetching ${this.trainingPairs.length} pairs in parallel...`);
+            const pairResults = await Promise.allSettled(
+                this.trainingPairs.map(symbol =>
+                    exchange.fetchOHLCV(symbol, config.timeframe, 400)
+                        .then(candles => ({ symbol, candles }))
+                )
+            );
 
-                    if (candles.length < 200) {
-                        logger.warn(`AutoRetrainer: Not enough data for ${symbol}, skipping.`);
-                        continue;
+            for (const result of pairResults) {
+                if (result.status === 'rejected') {
+                    logger.warn(`AutoRetrainer: Failed to fetch pair: ${result.reason}`);
+                    continue;
+                }
+                const { symbol, candles } = result.value;
+
+                if (candles.length < 200) {
+                    logger.warn(`AutoRetrainer: Not enough data for ${symbol}, skipping.`);
+                    continue;
+                }
+
+                const allIndicators = IndicatorCalculator.calculateAll(candles);
+                const offset = candles.length - allIndicators.length;
+
+                for (let i = 0; i < allIndicators.length - LOOKAHEAD; i++) {
+                    const indicators = allIndicators[i];
+                    const candleIndex = offset + i;
+
+                    if (candleIndex < 0 || candleIndex >= candles.length) continue;
+
+                    const currentPrice = candles[candleIndex].close;
+                    const currentVolume = candles[candleIndex].volume;
+                    const atr = indicators.atr;
+
+                    if (!atr || atr <= 0) continue;
+
+                    const slDistance = atr * ATR_SL_MULT;
+                    const tpDistance = atr * ATR_TP_MULT;
+
+                    const adxValue = typeof indicators.adx === 'object'
+                        ? (indicators.adx as any).adx || 0
+                        : indicators.adx || 0;
+
+                    const candleHigh  = candles[candleIndex].high;
+                    const candleLow   = candles[candleIndex].low;
+                    const candleRange = candleHigh - candleLow;
+                    const bodyStrength = candleRange > 0
+                        ? (currentPrice - candleLow) / candleRange
+                        : 0.5;
+
+                    const baseFeat = [
+                        indicators.rsi || 50,
+                        indicators.macd?.histogram || 0,
+                        currentPrice / (indicators.ema21 || currentPrice),
+                        currentPrice / (indicators.ema9 || currentPrice),
+                        currentVolume / (indicators.volumeAvg || currentVolume || 1),
+                        ((indicators.bb?.upper || 0) - (indicators.bb?.lower || 0)) / (indicators.bb?.middle || currentPrice),
+                        adxValue,
+                        bodyStrength,
+                    ];
+
+                    const entryPrice = currentPrice;
+
+                    // LONG sample: wins if futureHigh hits TP before futureLow hits SL
+                    let longLabel = 0;
+                    for (let j = 1; j <= LOOKAHEAD; j++) {
+                        if (candleIndex + j >= candles.length) break;
+                        const futureHigh = candles[candleIndex + j].high;
+                        const futureLow  = candles[candleIndex + j].low;
+                        if (futureLow  <= entryPrice - slDistance) { longLabel = 0; break; }
+                        if (futureHigh >= entryPrice + tpDistance) { longLabel = 1; break; }
                     }
 
-                    const allIndicators = IndicatorCalculator.calculateAll(candles);
-                    const offset = candles.length - allIndicators.length;
-
-                    for (let i = 0; i < allIndicators.length - LOOKAHEAD; i++) {
-                        const indicators = allIndicators[i];
-                        const candleIndex = offset + i;
-
-                        if (candleIndex < 0 || candleIndex >= candles.length) continue;
-
-                        const currentPrice = candles[candleIndex].close;
-                        const currentVolume = candles[candleIndex].volume;
-                        const atr = indicators.atr;
-
-                        if (!atr || atr <= 0) continue;
-
-                        const slDistance = atr * ATR_SL_MULT;
-                        const tpDistance = atr * ATR_TP_MULT;
-
-                        const adxValue = typeof indicators.adx === 'object'
-                            ? (indicators.adx as any).adx || 0
-                            : indicators.adx || 0;
-
-                        // Candle body strength: where did close land in the high-low range?
-                        // 1.0 = closed at high (strongly bullish), 0.0 = closed at low (strongly bearish)
-                        const candleHigh  = candles[candleIndex].high;
-                        const candleLow   = candles[candleIndex].low;
-                        const candleRange = candleHigh - candleLow;
-                        const bodyStrength = candleRange > 0
-                            ? (currentPrice - candleLow) / candleRange
-                            : 0.5;
-
-                        const baseFeat = [
-                            indicators.rsi || 50,
-                            indicators.macd?.histogram || 0,
-                            currentPrice / (indicators.ema21 || currentPrice),
-                            currentPrice / (indicators.ema9 || currentPrice),
-                            currentVolume / (indicators.volumeAvg || currentVolume || 1),
-                            ((indicators.bb?.upper || 0) - (indicators.bb?.lower || 0)) / (indicators.bb?.middle || currentPrice),
-                            adxValue,
-                            bodyStrength,  // feature #7 — candle body position in range
-                        ];
-
-                        const entryPrice = currentPrice;
-
-                        // LONG sample: wins if futureHigh hits TP before futureLow hits SL
-                        let longLabel = 0;
-                        for (let j = 1; j <= LOOKAHEAD; j++) {
-                            if (candleIndex + j >= candles.length) break;
-                            const futureHigh = candles[candleIndex + j].high;
-                            const futureLow  = candles[candleIndex + j].low;
-                            if (futureLow  <= entryPrice - slDistance) { longLabel = 0; break; }
-                            if (futureHigh >= entryPrice + tpDistance) { longLabel = 1; break; }
-                        }
-
-                        // SHORT sample: wins if futureLow hits TP before futureHigh hits SL (inverted)
-                        let shortLabel = 0;
-                        for (let j = 1; j <= LOOKAHEAD; j++) {
-                            if (candleIndex + j >= candles.length) break;
-                            const futureHigh = candles[candleIndex + j].high;
-                            const futureLow  = candles[candleIndex + j].low;
-                            if (futureHigh >= entryPrice + slDistance) { shortLabel = 0; break; }
-                            if (futureLow  <= entryPrice - tpDistance) { shortLabel = 1; break; }
-                        }
-
-                        const longFeat  = [...baseFeat, 1.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
-                        const shortFeat = [...baseFeat, 0.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
-
-                        if (longFeat.every(v => isFinite(v))) {
-                            allFeatures.push(longFeat);
-                            allLabels.push(longLabel);
-                        }
-                        if (shortFeat.every(v => isFinite(v))) {
-                            allFeatures.push(shortFeat);
-                            allLabels.push(shortLabel);
-                        }
+                    // SHORT sample: wins if futureLow hits TP before futureHigh hits SL
+                    let shortLabel = 0;
+                    for (let j = 1; j <= LOOKAHEAD; j++) {
+                        if (candleIndex + j >= candles.length) break;
+                        const futureHigh = candles[candleIndex + j].high;
+                        const futureLow  = candles[candleIndex + j].low;
+                        if (futureHigh >= entryPrice + slDistance) { shortLabel = 0; break; }
+                        if (futureLow  <= entryPrice - tpDistance) { shortLabel = 1; break; }
                     }
-                } catch (err) {
-                    logger.warn(`AutoRetrainer: Failed to fetch ${symbol}: ${err}`);
+
+                    const longFeat  = [...baseFeat, 1.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
+                    const shortFeat = [...baseFeat, 0.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
+
+                    if (longFeat.every(v => isFinite(v))) {
+                        allFeatures.push(longFeat);
+                        allLabels.push(longLabel);
+                    }
+                    if (shortFeat.every(v => isFinite(v))) {
+                        allFeatures.push(shortFeat);
+                        allLabels.push(shortLabel);
+                    }
                 }
             }
 
