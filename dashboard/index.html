@@ -70,6 +70,7 @@ function mapTrade(t) {
   return {
     id: t.id,
     time: new Date(t.entryTime).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),
+    rawDate: t.entryTime,
     symbol: normSym(t.symbol),
     side: t.side==='buy'?'Long':'Short',
     entry: t.entryPrice||t.price||0,
@@ -231,70 +232,97 @@ function StatCard({label,value,sub,delta,accent,t,spark,sparkColor}) {
 
 // ─── CHARTS ──────────────────────────────────────────────────────────────────
 function PnLChart({trades,t}) {
-  const ref=useRef(null), chart=useRef(null);
+  const ref=useRef(null), chart=useRef(null), tRef=useRef(t);
+  // Create chart structure once per theme change
   useEffect(()=>{
     if(!ref.current) return;
-    if(chart.current) chart.current.destroy();
+    if(chart.current){chart.current.destroy();chart.current=null;}
+    tRef.current=t;
+    chart.current=new Chart(ref.current,{
+      type:'bar',
+      data:{labels:[],datasets:[
+        {type:'bar',label:'Trade P&L',data:[],backgroundColor:[],borderRadius:3,borderSkipped:false,order:2},
+        {type:'line',label:'Cumulative',data:[],borderColor:t.accent,borderWidth:1.5,fill:false,tension:0.4,pointRadius:0,pointHoverRadius:4,order:1,yAxisID:'y'}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,titleColor:t.textDim,bodyColor:t.text,
+          callbacks:{label:ctx=>ctx.datasetIndex===0?` P&L: $${(+ctx.raw).toFixed(2)}`:`Cum: $${(+ctx.raw).toFixed(2)}`}}},
+        scales:{x:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},maxTicksLimit:10}},
+                y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
+    });
+    return()=>{try{chart.current?.destroy();}catch(_){}chart.current=null;};
+  },[t]);
+  // Update data without recreating (no flicker)
+  useEffect(()=>{
+    if(!chart.current) return;
     const sorted=[...trades].reverse();
     let cum=0;
-    const data=sorted.map(tr=>{cum+=tr.pnl;return+cum.toFixed(2);});
-    const pos=data[data.length-1]>=0;
-    chart.current=new Chart(ref.current,{
-      type:'line',
-      data:{labels:sorted.map(tr=>tr.symbol.replace('USDT','')),datasets:[{data,borderColor:pos?t.green:t.red,borderWidth:2,fill:true,
-        backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,ctx.chart.height);g.addColorStop(0,(pos?t.green:t.red)+'28');g.addColorStop(1,(pos?t.green:t.red)+'00');return g;},
-        tension:0.4,pointRadius:3,pointBackgroundColor:pos?t.green:t.red,pointBorderColor:t.card,pointBorderWidth:1.5,pointHoverRadius:5}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,titleColor:t.textDim,bodyColor:t.text,callbacks:{label:ctx=>` $${ctx.raw.toFixed(2)}`}}},
-        scales:{x:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},maxTicksLimit:10}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
-    });
-    return()=>{if(chart.current)chart.current.destroy();};
-  },[t,trades]);
+    const cumData=sorted.map(tr=>{cum+=tr.pnl;return+cum.toFixed(2);});
+    const th=tRef.current;
+    chart.current.data.labels=sorted.map(tr=>tr.symbol.replace('USDT',''));
+    chart.current.data.datasets[0].data=sorted.map(tr=>+tr.pnl.toFixed(2));
+    chart.current.data.datasets[0].backgroundColor=sorted.map(tr=>tr.pnl>=0?th.green+'cc':th.red+'cc');
+    chart.current.data.datasets[1].data=cumData;
+    chart.current.data.datasets[1].borderColor=th.accent;
+    chart.current.update('none');
+  },[trades]);
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
 function DirectionChart({t,trades=[]}) {
-  const ref=useRef(null),chart=useRef(null);
+  const ref=useRef(null),chart=useRef(null),tRef=useRef(t);
   useEffect(()=>{
     if(!ref.current) return;
-    if(chart.current) chart.current.destroy();
+    if(chart.current){chart.current.destroy();chart.current=null;}
+    tRef.current=t;
+    chart.current=new Chart(ref.current,{
+      type:'bar',
+      data:{labels:['Long Wins','Long Loss','Short Wins','Short Loss'],datasets:[{data:[0,0,0,0],backgroundColor:[t.green+'cc',t.red+'cc',t.green+'88',t.red+'88'],borderRadius:4,borderSkipped:false}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,bodyColor:t.text,callbacks:{label:ctx=>` $${(+ctx.raw).toFixed(2)}`}}},
+        scales:{x:{grid:{display:false},ticks:{color:t.textMuted,font:{size:10}}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
+    });
+    return()=>{try{chart.current?.destroy();}catch(_){}chart.current=null;};
+  },[t]);
+  useEffect(()=>{
+    if(!chart.current) return;
     const lw=trades.filter(x=>x.side==='Long'&&x.pnl>0).reduce((a,b)=>a+b.pnl,0);
     const ll=trades.filter(x=>x.side==='Long'&&x.pnl<0).reduce((a,b)=>a+Math.abs(b.pnl),0);
     const sw=trades.filter(x=>x.side==='Short'&&x.pnl>0).reduce((a,b)=>a+b.pnl,0);
     const sl=trades.filter(x=>x.side==='Short'&&x.pnl<0).reduce((a,b)=>a+Math.abs(b.pnl),0);
-    chart.current=new Chart(ref.current,{
-      type:'bar',
-      data:{labels:['Long Wins','Long Loss','Short Wins','Short Loss'],
-        datasets:[{data:[lw,ll,sw,sl],backgroundColor:[t.green+'cc',t.red+'cc',t.green+'88',t.red+'88'],borderRadius:4,borderSkipped:false}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,bodyColor:t.text,callbacks:{label:ctx=>` $${ctx.raw.toFixed(2)}`}}},
-        scales:{x:{grid:{display:false},ticks:{color:t.textMuted,font:{size:10}}},y:{grid:{color:t.border+'44'},ticks:{color:t.textMuted,font:{size:10},callback:v=>'$'+v}}}}
-    });
-    return()=>{if(chart.current)chart.current.destroy();};
-  },[t,trades]);
+    chart.current.data.datasets[0].data=[lw,ll,sw,sl];
+    chart.current.update('none');
+  },[trades]);
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
 function WinRateChart({t,trades=[]}) {
-  const ref=useRef(null),chart=useRef(null);
+  const ref=useRef(null),chart=useRef(null),tRef=useRef(t);
   useEffect(()=>{
     if(!ref.current) return;
-    if(chart.current) chart.current.destroy();
-    const wins=trades.filter(tr=>tr.pnl>0).length;
+    if(chart.current){chart.current.destroy();chart.current=null;}
+    tRef.current=t;
     chart.current=new Chart(ref.current,{
       type:'doughnut',
-      data:{labels:['Wins','Losses'],datasets:[{data:[wins,Math.max(0,trades.length-wins)],backgroundColor:[t.green+'cc',t.border],borderColor:[t.green+'44',t.border],borderWidth:1.5,hoverOffset:4}]},
+      data:{labels:['Wins','Losses'],datasets:[{data:[0,1],backgroundColor:[t.green+'cc',t.border],borderColor:[t.green+'44',t.border],borderWidth:1.5,hoverOffset:4}]},
       options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,borderColor:t.border,borderWidth:1,bodyColor:t.text}}}
     });
-    return()=>{if(chart.current)chart.current.destroy();};
-  },[t,trades]);
+    return()=>{try{chart.current?.destroy();}catch(_){}chart.current=null;};
+  },[t]);
+  useEffect(()=>{
+    if(!chart.current) return;
+    const wins=trades.filter(tr=>tr.pnl>0).length;
+    chart.current.data.datasets[0].data=[wins,Math.max(0,trades.length-wins)];
+    chart.current.update('none');
+  },[trades]);
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
 function HeatmapCalendar({t,trades=[]}) {
   const heatmap = useMemo(()=>{
     const map={};
-    trades.forEach(tr=>{ if(!tr.time) return; const d=new Date(tr.time).toDateString(); map[d]=(map[d]||0)+tr.pnl; });
+    trades.forEach(tr=>{ if(!tr.rawDate) return; const d=new Date(tr.rawDate).toDateString(); map[d]=(map[d]||0)+tr.pnl; });
     const days=[];
     for(let i=89;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push({date:d,pnl:+(map[d.toDateString()]||0).toFixed(2)}); }
     return days;
@@ -712,7 +740,7 @@ function HistorySection({t,trades=[]}) {
   );
 }
 
-function AnalyticsSection({t,trades=[]}) {
+function AnalyticsSection({t,trades=[],status,wsConnected}) {
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
   const closedTrades=trades.filter(tr=>tr.status==='closed');
   const wins=closedTrades.filter(tr=>tr.pnl>0).length;
@@ -774,16 +802,26 @@ function AnalyticsSection({t,trades=[]}) {
       <div style={card}>
         <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Bot Health</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
-          {[
-            {label:'Uptime',        value:'14h 22m',  sub:'Since last start',  ok:true},
-            {label:'Last Retrain',  value:'6h ago',   sub:'Next in 5h 38m',    ok:true},
-            {label:'Avg Confidence',value:'71%',      sub:'Last 20 signals',   ok:true},
-            {label:'API Latency',   value:'38ms',     sub:'Bybit testnet',      ok:true},
-            {label:'Training Samples',value:'847',    sub:'In model',           ok:true},
-            {label:'Feature Coverage',value:'100%',   sub:'All trades tagged',  ok:true},
-            {label:'Live Readiness',value:'42%',      sub:'42/100 paper trades',ok:false},
-            {label:'WebSocket',     value:'Connected',sub:'5s push interval',   ok:true},
-          ].map((item,i)=>(
+          {(()=>{
+            const ready=status?.readiness;
+            const tradesCompleted=ready?.tradesCompleted??0;
+            const tradesRequired=ready?.tradesRequired??100;
+            const isReady=ready?.isReady??false;
+            const openPos=status?.openPositions??0;
+            const monitored=status?.monitoredPairs?.length??0;
+            const avgConf=closedTrades.length>0?(closedTrades.reduce((a,b)=>a+b.confidence,0)/closedTrades.length).toFixed(0)+'%':'—';
+            const items=[
+              {label:'Status',          value:status?.isRunning?'RUNNING':'STOPPED', sub:status?.mode??'—',              ok:status?.isRunning??false},
+              {label:'Mode',            value:status?.mode?.toUpperCase()??'—',       sub:status?.marginMode??'isolated',  ok:true},
+              {label:'Leverage',        value:(status?.leverage??3)+'×',              sub:'Isolated margin',               ok:true},
+              {label:'Open Positions',  value:String(openPos),                        sub:`of max allowed`,                ok:true},
+              {label:'Monitored Pairs', value:String(monitored),                      sub:'Active scan',                   ok:monitored>0},
+              {label:'Avg Confidence',  value:avgConf,                                sub:'Last trades',                   ok:true},
+              {label:'Live Readiness',  value:`${tradesCompleted}/${tradesRequired}`, sub:isReady?'Ready for live':'Needs more trades', ok:isReady},
+              {label:'WebSocket',       value:wsConnected?'Connected':'Offline',      sub:'5s push interval',              ok:wsConnected},
+            ];
+            return items;
+          })().map((item,i)=>(
             <div key={i} style={{padding:'14px',background:t.bg,borderRadius:8,border:`1px solid ${item.ok?t.border:t.accent+'44'}`}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
                 <div style={{fontSize:13,fontWeight:700,color:item.ok?t.text:t.accent}}>{item.value}</div>

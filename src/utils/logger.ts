@@ -1,5 +1,26 @@
 import winston from 'winston';
+import { Writable } from 'stream';
 import { config } from '../config/trading.config';
+
+// Late-bound web pusher — set after WebServer is ready (avoids circular import)
+let _webPusher: ((msg: string, level: 'info' | 'warn' | 'error') => void) | null = null;
+export function attachWebPusher(fn: (msg: string, level: 'info' | 'warn' | 'error') => void) {
+    _webPusher = fn;
+}
+
+const _webStream = new Writable({
+    write(chunk: Buffer, _enc: string, callback: () => void) {
+        try {
+            const info = JSON.parse(chunk.toString());
+            if (_webPusher && info.message) {
+                const level: 'info' | 'warn' | 'error' =
+                    info.level === 'error' ? 'error' : info.level === 'warn' ? 'warn' : 'info';
+                _webPusher(String(info.message), level);
+            }
+        } catch (_) { /* ignore malformed lines */ }
+        callback();
+    }
+});
 
 const logFormat = winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -45,6 +66,8 @@ if (config.logging.file) {
         })
     );
 }
+
+transports.push(new winston.transports.Stream({ stream: _webStream, level: 'info' }));
 
 export const logger = winston.createLogger({
     level: config.logging.level,

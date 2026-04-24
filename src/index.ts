@@ -2,7 +2,7 @@ import { TradingEngine } from './core/TradingEngine';
 import { BybitExchange } from './exchanges/BybitExchange';
 import { TrendFollowingStrategy } from './strategies/TrendFollowingStrategy';
 import { validateConfig } from './config/trading.config';
-import { logger } from './utils/logger';
+import { logger, attachWebPusher } from './utils/logger';
 import { prisma } from './database/TradeRepository';
 import { notifier } from './utils/notifier';
 import { autoRetrainer } from './ai/AutoRetrainer';
@@ -89,6 +89,9 @@ async function main() {
 
         // Connect live engine data to dashboard
         webServer.registerEngine(futuresEngine);
+
+        // Wire logger → dashboard live log feed
+        attachWebPusher((msg, level) => webServer.pushLog(msg, level));
 
         // Keep the process running
         logger.info('Trading bot is running. Press Ctrl+C to stop.');
