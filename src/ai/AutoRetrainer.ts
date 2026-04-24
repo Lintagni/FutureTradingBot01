@@ -276,6 +276,25 @@ export class AutoRetrainer {
                 fs.copyFileSync(modelPath, backupPath);
             }
 
+            // Final sanity check — reject any sample that isn't exactly 9 finite features.
+            // Guards against stale DB samples, malformed candle data, or any upstream bug.
+            const EXPECTED_FEAT = 9;
+            const preSanitize = balancedFeatures.length;
+            const sanitized = balancedFeatures
+                .map((f, i) => ({ f, l: balancedLabels[i] }))
+                .filter(({ f }) => f.length === EXPECTED_FEAT && f.every(v => isFinite(v)));
+            balancedFeatures = sanitized.map(x => x.f);
+            balancedLabels   = sanitized.map(x => x.l);
+            if (balancedFeatures.length < preSanitize) {
+                logger.warn(`AutoRetrainer: Dropped ${preSanitize - balancedFeatures.length} malformed samples (wrong length or non-finite values)`);
+            }
+
+            if (balancedFeatures.length < 10) {
+                logger.warn(`AutoRetrainer: Too few clean samples after sanitization (${balancedFeatures.length}). Skipping.`);
+                this.isRetraining = false;
+                return;
+            }
+
             // Train new model
             logger.info(`AutoRetrainer: Training on ${balancedFeatures.length} balanced samples...`);
             aiModel.train(balancedFeatures, balancedLabels);
