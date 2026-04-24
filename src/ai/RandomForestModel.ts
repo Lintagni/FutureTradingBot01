@@ -28,7 +28,8 @@ export class RandomForestModel {
         const options = {
             seed: 42,
             maxFeatures: 0.8,
-            replacement: false, // true triggers OOB computation; mode([]) throws when a sample is never OOB
+            replacement: false,
+            useSampleBagging: false, // OOB is gated on useSampleBagging (not replacement); mode([]) throws on empty OOB arrays
             nEstimators: 15,
         };
 
