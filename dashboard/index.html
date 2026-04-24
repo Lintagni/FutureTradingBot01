@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Futures Bot"/>
+<meta name="theme-color" content="#00c9b1"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.svg"/>
 <title>FUTURES BOT — Dashboard</title>
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -13,6 +20,9 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { height: 100%; }
   body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; overflow: hidden; }
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
@@ -34,6 +44,22 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+}
+
+// ─── RESPONSIVE ───────────────────────────────────────────────────────────────
+function useWindowSize() {
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const handler = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return size;
+}
 
 // ─── THEMES ──────────────────────────────────────────────────────────────────
 const THEMES = {
@@ -532,7 +558,7 @@ function Table({t,columns,rows,renderRow}) {
 }
 
 // ─── SECTIONS ────────────────────────────────────────────────────────────────
-function DashboardSection({t,setPage,status,trades,wsConnected}) {
+function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
   const closedTrades = trades.filter(tr=>tr.status==='closed');
   const totalPnL = status?.totalPnL ?? 0;
   const dailyPnL = status?.dailyPnL ?? 0;
@@ -559,7 +585,7 @@ function DashboardSection({t,setPage,status,trades,wsConnected}) {
   return (
     <div style={{display:'flex',flexDirection:'column',gap:18}}>
       {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(6,1fr)',gap:isMobile?10:12}}>
         <StatCard t={t} label="USDT Balance" value={`$${liveBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`} sub={status?.mode==='paper'?'Paper account':'Live account'} spark={cumSpark} sparkColor={(cumSpark[cumSpark.length-1]??0)>=0?t.green:t.red}/>
         <StatCard t={t} label="Daily P&L" value={fmt(livePnL)} sub="Today" accent delta={livePnL} spark={cumSpark} sparkColor={livePnL>=0?t.green:t.red}/>
         <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="All time" accent delta={totalPnL} spark={cumSpark} sparkColor={totalPnL>=0?t.green:t.red}/>
@@ -575,7 +601,7 @@ function DashboardSection({t,setPage,status,trades,wsConnected}) {
       </div>
 
       {/* Charts row */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 320px',gap:16}}>
         <div style={card}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <div>
@@ -584,7 +610,7 @@ function DashboardSection({t,setPage,status,trades,wsConnected}) {
             </div>
             <Badge color="green" t={t}>Last 20 Trades</Badge>
           </div>
-          <div style={{height:170}}><PnLChart trades={closedTrades} t={t}/></div>
+          <div style={{height:isMobile?140:170}}><PnLChart trades={closedTrades} t={t}/></div>
         </div>
         <div style={card}>
           <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>Open Positions</div>
@@ -656,7 +682,7 @@ function DashboardSection({t,setPage,status,trades,wsConnected}) {
   );
 }
 
-function PositionsSection({t,status}) {
+function PositionsSection({t,status,isMobile}) {
   const [closeTarget,setCloseTarget]=useState(null);
   const leverage = status?.leverage||3;
   const open=(status?.positionDetails||[]).map(p=>mapPosition(p,leverage));
@@ -664,7 +690,7 @@ function PositionsSection({t,status}) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:18}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:isMobile?10:12}}>
         <StatCard t={t} label="Open Positions" value={open.length} sub={`Of ${status?.leverage||3}× max`}/>
         <StatCard t={t} label="Unrealized P&L" value={fmt(status?.unrealizedPnL??0)} sub="Combined" accent delta={status?.unrealizedPnL??0}/>
         <StatCard t={t} label="Mode" value={status?.mode?.toUpperCase()??'—'} sub={status?.marginMode||'isolated'}/>
@@ -707,7 +733,7 @@ function PositionsSection({t,status}) {
   );
 }
 
-function HistorySection({t,trades=[]}) {
+function HistorySection({t,trades=[],isMobile}) {
   const [filter,setFilter]=useState('All');
   const [search,setSearch]=useState('');
   const [drawerTrade,setDrawerTrade]=useState(null);
@@ -726,7 +752,7 @@ function HistorySection({t,trades=[]}) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:18}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?10:12}}>
         <StatCard t={t} label="Total Trades" value={filtered.length} sub="Closed"/>
         <StatCard t={t} label="Win Rate" value={(wins/Math.max(filtered.length,1)*100).toFixed(1)+'%'} sub={`${wins} wins`}/>
         <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="Net" accent delta={totalPnL}/>
@@ -784,7 +810,7 @@ function HistorySection({t,trades=[]}) {
   );
 }
 
-function AnalyticsSection({t,trades=[],status,wsConnected}) {
+function AnalyticsSection({t,trades=[],status,wsConnected,isMobile}) {
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
   const closedTrades=trades.filter(tr=>tr.status==='closed');
   const wins=closedTrades.filter(tr=>tr.pnl>0).length;
@@ -797,14 +823,14 @@ function AnalyticsSection({t,trades=[],status,wsConnected}) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:18}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?10:12}}>
         <StatCard t={t} label="Total Won" value={fmt(totalWon)} sub={`${wins} trades`} accent delta={1}/>
         <StatCard t={t} label="Total Lost" value={fmt(-totalLost)} sub={`${closedTrades.length-wins} trades`} accent delta={-1}/>
         <StatCard t={t} label="Profit Factor" value={totalLost>0?(totalWon/totalLost).toFixed(2)+'×':'—'} sub="Won ÷ Lost"/>
         <StatCard t={t} label="Expectancy" value={closedTrades.length>0?fmt((totalWon-totalLost)/closedTrades.length):'$0.00'} sub="Per trade" accent delta={(totalWon-totalLost)/Math.max(closedTrades.length,1)}/>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
         <div style={card}>
           <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>Win Rate Breakdown</div>
           <div style={{display:'flex',alignItems:'center',gap:20}}>
@@ -845,7 +871,7 @@ function AnalyticsSection({t,trades=[],status,wsConnected}) {
       {/* Bot health */}
       <div style={card}>
         <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Bot Health</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?10:12}}>
           {(()=>{
             const ready=status?.readiness;
             const tradesCompleted=ready?.tradesCompleted??0;
@@ -881,7 +907,7 @@ function AnalyticsSection({t,trades=[],status,wsConnected}) {
   );
 }
 
-function LogsSection({t,liveLogs=[],wsConnected}) {
+function LogsSection({t,liveLogs=[],wsConnected,isMobile}) {
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
   const typeColor={info:t.textDim,trade:t.green,ai:t.accent,system:t.accent2};
   const typeLabel={info:'INFO',trade:'TRADE',ai:'AI',system:'SYS'};
@@ -914,7 +940,7 @@ function LogsSection({t,liveLogs=[],wsConnected}) {
   );
 }
 
-function CredentialsForm({t,inp,lbl}) {
+function CredentialsForm({t,inp,lbl,isMobile}) {
   const [cur,setCur]=useState('');
   const [usr,setUsr]=useState('');
   const [pwd,setPwd]=useState('');
@@ -945,7 +971,7 @@ function CredentialsForm({t,inp,lbl}) {
   const fieldStyle={...inp};
   return (
     <form onSubmit={handleSubmit}>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:12,marginBottom:12}}>
         <div>
           <label style={lbl}>Current Password</label>
           <input style={fieldStyle} type="password" value={cur} onChange={e=>setCur(e.target.value)} placeholder="Current password" required
@@ -979,7 +1005,7 @@ function CredentialsForm({t,inp,lbl}) {
   );
 }
 
-function SettingsSection({t}) {
+function SettingsSection({t,isMobile}) {
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'24px'};
   const inp={width:'100%',background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:'9px 12px',color:t.text,fontSize:13,outline:'none',fontFamily:'inherit',transition:'border 0.15s'};
   const lbl={fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:7,display:'block'};
@@ -988,7 +1014,7 @@ function SettingsSection({t}) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:16}}>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16}}>
         <div style={card}>
           <div style={hdr}>Risk Management</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
@@ -1015,9 +1041,9 @@ function SettingsSection({t}) {
           <div style={{marginBottom:16}}><label style={lbl}>Monitored Pairs</label><input style={inp} defaultValue="BTC ETH SOL BNB XRP DOGE AVAX LINK" onFocus={e=>e.target.style.borderColor=t.accent} onBlur={e=>e.target.style.borderColor=t.border}/></div>
           <button style={saveBtn}>Save Strategy</button>
         </div>
-        <div style={{...card,gridColumn:'span 2'}}>
+        <div style={{...card,gridColumn:isMobile?undefined:'span 2'}}>
           <div style={hdr}>System Information</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:12}}>
             {[{l:'WebSocket Push',v:'Every 5s'},{l:'REST Fallback',v:'Every 8s'},{l:'AI Retraining',v:'Every 12h'},{l:'Market Scanner',v:'Every 5 min'}].map((item,i)=>(
               <div key={i} style={{padding:'14px',background:t.bg,borderRadius:8,border:`1px solid ${t.border}`}}>
                 <div style={{fontSize:13,fontWeight:700,color:t.accent}}>{item.v}</div>
@@ -1028,9 +1054,9 @@ function SettingsSection({t}) {
         </div>
 
         {/* Change credentials */}
-        <div style={{...card,gridColumn:'span 2'}}>
+        <div style={{...card,gridColumn:isMobile?undefined:'span 2'}}>
           <div style={hdr}>Change Login Credentials</div>
-          <CredentialsForm t={t} inp={inp} lbl={lbl}/>
+          <CredentialsForm t={t} inp={inp} lbl={lbl} isMobile={isMobile}/>
         </div>
       </div>
     </div>
@@ -1155,10 +1181,28 @@ function NotificationsTray({t}) {
 const PAGE_TITLES={dashboard:'Dashboard',positions:'Open Positions',history:'Trade History',analytics:'Analytics',logs:'Live Logs',settings:'Settings'};
 const KB_HINTS={d:'Dashboard',p:'Positions',h:'History',a:'Analytics',l:'Logs',s:'Settings'};
 
-function TopBar({t,active,running}) {
+function TopBar({t,active,running,isMobile}) {
   const [time,setTime]=useState(new Date());
   const [showKb,setShowKb]=useState(false);
   useEffect(()=>{const id=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(id);},[]);
+
+  if(isMobile) return (
+    <div style={{height:52,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',flexShrink:0,background:t.bg}}>
+      <div style={{display:'flex',alignItems:'center',gap:7}}>
+        <div style={{width:24,height:24,borderRadius:6,background:t.accentDim,border:`1px solid ${t.accent}44`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1.5 9.5L4.5 6L7 8L12.5 2.5" stroke={t.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 2.5h2.5V5" stroke={t.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <span style={{fontSize:14,fontWeight:700,color:t.text}}>{PAGE_TITLES[active]}</span>
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:4}}><StatusDot active={running} t={t}/><span style={{fontSize:11,color:running?t.green:t.textMuted,fontWeight:600}}>{running?'Live':'Off'}</span></div>
+        <button onClick={async()=>{await fetch('/api/logout',{method:'POST'});window.location.href='/login.html';}}
+          style={{background:'transparent',border:`1px solid ${t.border}`,borderRadius:6,padding:'4px 8px',color:t.textMuted,fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
+          Out
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{height:52,borderBottom:`1px solid ${t.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 22px',flexShrink:0,background:t.bg}}>
@@ -1206,17 +1250,45 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 const PAGE_KEYS={d:'dashboard',p:'positions',h:'history',a:'analytics',l:'logs',s:'settings'};
 
+// ─── MOBILE BOTTOM NAV ───────────────────────────────────────────────────────
+function BottomNav({t,active,setActive,openPositions}) {
+  const items=[
+    {id:'dashboard',label:'Home'},
+    {id:'positions',label:'Positions'},
+    {id:'history',label:'History'},
+    {id:'analytics',label:'Analytics'},
+    {id:'logs',label:'Logs'},
+    {id:'settings',label:'Settings'},
+  ];
+  return (
+    <div className="safe-bottom" style={{position:'fixed',bottom:0,left:0,right:0,background:t.sidebar,borderTop:`1px solid ${t.border}`,display:'flex',zIndex:200,boxShadow:'0 -4px 20px rgba(0,0,0,0.4)'}}>
+      {items.map(item=>{
+        const isActive=active===item.id;
+        return (
+          <button key={item.id} onClick={()=>setActive(item.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,padding:'8px 2px 10px',background:'transparent',border:'none',cursor:'pointer',color:isActive?t.accent:t.textMuted,position:'relative',transition:'color 0.15s'}}>
+            {item.id==='positions'&&openPositions>0 && <span style={{position:'absolute',top:6,right:'50%',marginRight:-14,width:14,height:14,borderRadius:'50%',background:t.green,color:'#fff',fontSize:8,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center'}}>{openPositions}</span>}
+            <NavIcon id={item.id} t={t} active={isActive}/>
+            <span style={{fontSize:9,fontWeight:isActive?700:400,letterSpacing:'0.02em'}}>{item.label}</span>
+            {isActive && <div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50%)',width:24,height:2,borderRadius:2,background:t.accent}}/>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const [tweaks,setTweak]=useTweaks(TWEAK_DEFAULTS);
   const [active,setActive]=useState('dashboard');
   const t=THEMES[tweaks.theme]||THEMES.slate;
   const {status,trades,liveLogs,wsConnected}=useLiveData();
   const running=status?.isRunning??false;
+  const {w}=useWindowSize();
+  const isMobile=w<768;
 
   async function handleStart() { try { await fetch('/api/start',{method:'POST'}); } catch(_){} }
   async function handleStop()  { try { await fetch('/api/stop', {method:'POST'}); } catch(_){} }
 
-  // Keyboard navigation
   useEffect(()=>{
     function handler(e){
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
@@ -1228,25 +1300,28 @@ function App() {
 
   const sections={dashboard:DashboardSection,positions:PositionsSection,history:HistorySection,analytics:AnalyticsSection,logs:LogsSection,settings:SettingsSection};
   const CurrentSection=sections[active];
-  const sectionProps={t,setPage:setActive,status,trades,liveLogs,wsConnected};
+  const sectionProps={t,setPage:setActive,status,trades,liveLogs,wsConnected,isMobile};
 
   return (
     <div style={{display:'flex',height:'100vh',background:t.bg,color:t.text,overflow:'hidden',position:'relative'}}>
-      <Sidebar t={t} active={active} setActive={setActive} running={running} setRunning={v=>v?handleStart():handleStop()} openPositions={status?.openPositions??0}/>
+      {!isMobile && <Sidebar t={t} active={active} setActive={setActive} running={running} setRunning={v=>v?handleStart():handleStop()} openPositions={status?.openPositions??0}/>}
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <TopBar t={t} active={active} running={running}/>
-        <main style={{flex:1,overflowY:'auto',padding:tweaks.compactMode?'14px':'22px'}}>
+        <TopBar t={t} active={active} running={running} isMobile={isMobile}/>
+        <main style={{flex:1,overflowY:'auto',padding:isMobile?'12px':'22px',paddingBottom:isMobile?'72px':isMobile?'12px':'22px'}}>
           <CurrentSection {...sectionProps}/>
         </main>
       </div>
-      <TweaksPanel title="Tweaks">
-        <TweakSection title="Theme">
-          <TweakRadio label="Color Theme" value={tweaks.theme} onChange={v=>setTweak('theme',v)} options={[{value:'slate',label:'Slate Pro'},{value:'terminal',label:'Terminal'},{value:'carbon',label:'Carbon'}]}/>
-        </TweakSection>
-        <TweakSection title="Layout">
-          <TweakToggle label="Compact Mode" value={tweaks.compactMode} onChange={v=>setTweak('compactMode',v)}/>
-        </TweakSection>
-      </TweaksPanel>
+      {isMobile && <BottomNav t={t} active={active} setActive={setActive} openPositions={status?.openPositions??0}/>}
+      {!isMobile && (
+        <TweaksPanel title="Tweaks">
+          <TweakSection title="Theme">
+            <TweakRadio label="Color Theme" value={tweaks.theme} onChange={v=>setTweak('theme',v)} options={[{value:'slate',label:'Slate Pro'},{value:'terminal',label:'Terminal'},{value:'carbon',label:'Carbon'}]}/>
+          </TweakSection>
+          <TweakSection title="Layout">
+            <TweakToggle label="Compact Mode" value={tweaks.compactMode} onChange={v=>setTweak('compactMode',v)}/>
+          </TweakSection>
+        </TweaksPanel>
+      )}
     </div>
   );
 }
