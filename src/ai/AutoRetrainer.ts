@@ -300,7 +300,8 @@ export class AutoRetrainer {
             }
 
             // Train new model
-            logger.info(`AutoRetrainer: Training on ${balancedFeatures.length} balanced samples...`);
+            logger.info(`AutoRetrainer: Training on ${balancedFeatures.length} samples — feat[0].length=${balancedFeatures[0]?.length}, labels.length=${balancedLabels.length}`);
+            logger.info(`AutoRetrainer: Sample feat[0]=[${balancedFeatures[0]?.slice(0,4).join(',')}...]`);
             aiModel.train(balancedFeatures, balancedLabels);
 
             // Always save — quality is measured by trading performance, not in-sample accuracy
@@ -318,6 +319,7 @@ export class AutoRetrainer {
 
         } catch (error) {
             logger.error('AutoRetrainer: Error during retrain:', error);
+            if (error instanceof Error) logger.error('Stack:', error.stack);
             await notifier.sendTelegramMessage(`❌ *AI Retrain Error*: ${error}`);
         } finally {
             this.isRetraining = false;
