@@ -224,7 +224,7 @@ function StatCard({label,value,sub,delta,accent,t,spark,sparkColor}) {
           <div style={{fontSize:22,fontWeight:700,color:col,letterSpacing:'-0.02em',lineHeight:1}}>{value}</div>
           {sub && <div style={{fontSize:11,color:t.textDim,marginTop:4}}>{sub}</div>}
         </div>
-        {spark && <Sparkline data={spark} color={sparkColor||col} width={72} height={26}/>}
+        {spark && <Sparkline data={spark} color={sparkColor||col} width={80} height={38}/>}
       </div>
     </div>
   );
@@ -288,12 +288,17 @@ function PnLChart({trades,t}) {
     const cumData=sorted.map(tr=>{cum+=tr.pnl;return+cum.toFixed(2);});
     const th=tRef.current;
     const finalVal=cumData[cumData.length-1]??0;
-    const color=finalVal>=0?th.green:th.red;
+    const lineColor=finalVal>=0?th.green:th.red;
+    // Per-dot coloring: green dot = that trade was profit, red = loss
+    const dotColors=sorted.map(tr=>tr.pnl>=0?th.green:th.red);
     chart.current.data.labels=sorted.map(tr=>tr.symbol.replace('USDT',''));
     chart.current.data.datasets[0].data=cumData;
-    chart.current.data.datasets[0].borderColor=color;
-    chart.current.data.datasets[0].pointBackgroundColor=color;
-    chart.current.data.datasets[0].backgroundColor=(ctx)=>buildGradient(ctx.chart.ctx,color);
+    chart.current.data.datasets[0].borderColor=lineColor;
+    chart.current.data.datasets[0].pointBackgroundColor=dotColors;
+    chart.current.data.datasets[0].pointBorderColor=dotColors.map(c=>c+'66');
+    chart.current.data.datasets[0].pointRadius=sorted.map(()=>4);
+    chart.current.data.datasets[0].pointHoverRadius=7;
+    chart.current.data.datasets[0].backgroundColor=(ctx)=>buildGradient(ctx.chart.ctx,lineColor);
     chart.current.update('none');
   },[trades]);
 
@@ -538,6 +543,15 @@ function DashboardSection({t,setPage,status,trades,wsConnected}) {
   const liveBalance = useAnimatedNumber(balance, 2, 600);
   const livePnL     = useAnimatedNumber(dailyPnL, 2, 600);
 
+  // Sparkline data derived from trade history
+  const cumSpark = useMemo(()=>{
+    let c=0; return [...closedTrades].reverse().map(tr=>{c+=tr.pnl;return c;});
+  },[closedTrades]);
+  const winSpark = useMemo(()=>{
+    let wins=0,total=0;
+    return [...closedTrades].reverse().map(tr=>{total++;if(tr.pnl>0)wins++;return total>0?wins/total*100:0;});
+  },[closedTrades]);
+
   const card={background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:'20px'};
   const [drawerTrade,setDrawerTrade]=useState(null);
   const positions = (status?.positionDetails||[]).map(p=>mapPosition(p, status?.leverage));
@@ -546,10 +560,10 @@ function DashboardSection({t,setPage,status,trades,wsConnected}) {
     <div style={{display:'flex',flexDirection:'column',gap:18}}>
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:12}}>
-        <StatCard t={t} label="USDT Balance" value={`$${liveBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`} sub={status?.mode==='paper'?'Paper account':'Live account'} sparkColor={t.green}/>
-        <StatCard t={t} label="Daily P&L" value={fmt(livePnL)} sub="Today" accent delta={livePnL} sparkColor={livePnL>=0?t.green:t.red}/>
-        <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="All time" accent delta={totalPnL} sparkColor={totalPnL>=0?t.green:t.red}/>
-        <StatCard t={t} label="Win Rate" value={winRate+'%'} sub={`${wins}/${closedTrades.length} trades`} sparkColor={t.accent}/>
+        <StatCard t={t} label="USDT Balance" value={`$${liveBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`} sub={status?.mode==='paper'?'Paper account':'Live account'} spark={cumSpark} sparkColor={(cumSpark[cumSpark.length-1]??0)>=0?t.green:t.red}/>
+        <StatCard t={t} label="Daily P&L" value={fmt(livePnL)} sub="Today" accent delta={livePnL} spark={cumSpark} sparkColor={livePnL>=0?t.green:t.red}/>
+        <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="All time" accent delta={totalPnL} spark={cumSpark} sparkColor={totalPnL>=0?t.green:t.red}/>
+        <StatCard t={t} label="Win Rate" value={winRate+'%'} sub={`${wins}/${closedTrades.length} trades`} spark={winSpark} sparkColor={t.accent}/>
         <StatCard t={t} label="Open Positions" value={status?.openPositions??0} sub={`${status?.leverage??3}× isolated`}/>
         <StatCard t={t} label="Monitored Pairs" value={status?.monitoredPairs?.length??0} sub="Active pairs"/>
       </div>
