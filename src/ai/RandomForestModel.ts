@@ -30,7 +30,7 @@ export class RandomForestModel {
             maxFeatures: 0.8,
             replacement: false,
             useSampleBagging: false, // OOB is gated on useSampleBagging (not replacement); mode([]) throws on empty OOB arrays
-            nEstimators: 15,
+            nEstimators: 10,         // 10 trees keeps training under ~20s on Fly.io shared CPU
         };
 
         this.model = new RFClassifier(options);

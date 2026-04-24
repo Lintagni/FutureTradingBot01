@@ -284,6 +284,19 @@ export class AutoRetrainer {
             balancedFeatures = sanitized.map(x => x.f);
             balancedLabels   = sanitized.map(x => x.l);
 
+            // Cap at 1500 samples (750 wins + 750 losses) — keeps training under ~20s on Fly.io shared CPU.
+            // More samples don't meaningfully improve RF accuracy at this scale.
+            const MAX_TRAIN_SAMPLES = 1500;
+            if (balancedFeatures.length > MAX_TRAIN_SAMPLES) {
+                const half = MAX_TRAIN_SAMPLES / 2;
+                const capWins   = balancedFeatures.map((f, i) => ({ f, l: balancedLabels[i] })).filter(x => x.l === 1).slice(0, half);
+                const capLosses = balancedFeatures.map((f, i) => ({ f, l: balancedLabels[i] })).filter(x => x.l === 0).slice(0, half);
+                const capped    = [...capWins, ...capLosses].sort(() => Math.random() - 0.5);
+                balancedFeatures = capped.map(x => x.f);
+                balancedLabels   = capped.map(x => x.l);
+                logger.info(`AutoRetrainer: Capped to ${balancedFeatures.length} samples for training speed`);
+            }
+
             const finalWins   = balancedLabels.filter(l => l === 1).length;
             const finalLosses = balancedLabels.filter(l => l === 0).length;
             logger.info(`AutoRetrainer: Pre-train — ${balancedFeatures.length} samples (${finalWins} wins, ${finalLosses} losses), feat_len=${balancedFeatures[0]?.length ?? 'N/A'}`);
