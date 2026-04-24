@@ -613,6 +613,14 @@ export class TradingEngine {
             return;
         }
 
+        // ─── 3.5. Hard SHORT gate: require both HTF bearish ──────────────────
+        // Shorts in uptrending markets are the main source of losses.
+        // If either 1h or 4h HTF is bullish (confirmed data, not null), block the short.
+        if (isShort && (htfBullish1h === true || htfBullish4h === true)) {
+            logger.warn(`❌ SHORT blocked: macro not bearish (1h:${htfBullish1h} 4h:${htfBullish4h}) — skipping ${symbol}`);
+            return;
+        }
+
         // ─── 4. Trade Quality Score ───────────────────────────────────────────
         // Composite 0–100 score across HTF alignment, volume, MACD, funding.
         // Minimum 50/100 to enter (both HTF aligned = 50pts floor).

@@ -96,7 +96,7 @@ export const config = {
 
         // Stale Position Timeout (hours)
         stalePositionHours: 6,
-        stalePositionMinProfit: 0.5, // % — close if below this after timeout
+        stalePositionMinProfit: -0.5, // % — only force-exit if in loss (was 0.5; slow-but-correct trades no longer punished)
 
         // Loss Cooldown
         consecutiveLossCooldown: 2,  // After N consecutive losses

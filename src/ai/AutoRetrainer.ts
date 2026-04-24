@@ -101,8 +101,10 @@ export class AutoRetrainer {
             const allLabels: number[] = [];
 
             const ATR_SL_MULT = config.strategy.atrMultiplierSL || 2.0;
-            const ATR_TP_MULT = config.strategy.atrMultiplierTP || 4.0;
-            const LOOKAHEAD = 36;
+            // Training TP = ATR×2 (matches partial-TP trigger, ~50% natural hit rate).
+            // Old ATR×4 only hit ~30% → model learned "always loss" and was useless.
+            const ATR_TP_MULT = 2.0;
+            const LOOKAHEAD = 48; // was 36 — more room to reach ATR×2
 
             // Fetch data from multiple pairs
             for (const symbol of this.trainingPairs) {
@@ -136,6 +138,15 @@ export class AutoRetrainer {
                             ? (indicators.adx as any).adx || 0
                             : indicators.adx || 0;
 
+                        // Candle body strength: where did close land in the high-low range?
+                        // 1.0 = closed at high (strongly bullish), 0.0 = closed at low (strongly bearish)
+                        const candleHigh  = candles[candleIndex].high;
+                        const candleLow   = candles[candleIndex].low;
+                        const candleRange = candleHigh - candleLow;
+                        const bodyStrength = candleRange > 0
+                            ? (currentPrice - candleLow) / candleRange
+                            : 0.5;
+
                         const baseFeat = [
                             indicators.rsi || 50,
                             indicators.macd?.histogram || 0,
@@ -143,7 +154,8 @@ export class AutoRetrainer {
                             currentPrice / (indicators.ema9 || currentPrice),
                             currentVolume / (indicators.volumeAvg || currentVolume || 1),
                             ((indicators.bb?.upper || 0) - (indicators.bb?.lower || 0)) / (indicators.bb?.middle || currentPrice),
-                            adxValue
+                            adxValue,
+                            bodyStrength,  // feature #7 — candle body position in range
                         ];
 
                         const entryPrice = currentPrice;

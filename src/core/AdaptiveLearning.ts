@@ -196,6 +196,12 @@ export function extractFeatures(
 
     const adxNum = typeof indicators.adx === 'object' ? (indicators.adx as any)?.adx ?? 25 : indicators.adx ?? 25;
 
+    // Candle body strength: where close sits in the high-low range
+    const high  = indicators.high  ?? currentPrice;
+    const low   = indicators.low   ?? currentPrice;
+    const range = high - low;
+    const bodyStrength = range > 0 ? (currentPrice - low) / range : 0.5;
+
     const rawFeatures = [
         indicators.rsi || 50,
         indicators.macd?.histogram || 0,
@@ -204,6 +210,7 @@ export function extractFeatures(
         safeDiv(currentVolume, indicators.volumeAvg),
         safeDiv((indicators.bb?.upper - indicators.bb?.lower), indicators.bb?.middle),
         adxNum,
+        bodyStrength,      // feature #7 — matches training
         isLong ? 1.0 : 0.0,
     ];
 

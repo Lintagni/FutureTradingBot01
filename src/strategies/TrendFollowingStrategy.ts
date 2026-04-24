@@ -29,7 +29,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
         const adxValue = typeof indicators.adx === 'object'
             ? (indicators.adx as any).adx || 0
             : indicators.adx || 0;
-        const isTrending = adxValue > 18; // Slightly more sensitive trend detection (was 20)
+        const isTrending = adxValue > 25; // ADX 25+ = confirmed trend (18 was too loose, allowed ranging entries)
 
         // Check for bullish signals
         const bullishCrossover = IndicatorCalculator.isBullishCrossover(
@@ -50,7 +50,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
         if (bullishCrossover) {
             // Gate: Only act on crossovers in trending markets
             if (!isTrending) {
-                strategyLogger.info(`⚠️ Bullish crossover rejected: ADX ${adxValue.toFixed(1)} < 20 (ranging market)`);
+                strategyLogger.info(`⚠️ Bullish crossover rejected: ADX ${adxValue.toFixed(1)} < 25 (ranging market)`);
                 return this.holdSignal(currentPrice, indicators, `Crossover rejected: ADX too low (${adxValue.toFixed(1)})`);
             }
 
@@ -70,12 +70,12 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 reason += ', MACD bullish';
             }
 
-            // Confirm with RSI (must be above 45 and not overbought)
-            if (indicators.rsi > 45 && indicators.rsi < config.strategy.rsiOverbought) {
+            // Confirm with RSI (must be above 50 — bullish momentum territory — and not overbought)
+            if (indicators.rsi > 50 && indicators.rsi < config.strategy.rsiOverbought) {
                 confidence += 0.15;
                 reason += ', RSI favorable';
-            } else if (indicators.rsi <= 45) {
-                // RSI too weak — momentum is not supporting the crossover
+            } else if (indicators.rsi <= 50) {
+                // RSI below 50 — momentum not yet bullish
                 confidence -= 0.05;
                 reason += ', RSI weak';
             }
@@ -108,7 +108,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
         // Bearish conditions
         else if (bearishCrossover) {
             if (!isTrending) {
-                strategyLogger.info(`⚠️ Bearish crossover rejected: ADX ${adxValue.toFixed(1)} < 20 (ranging market)`);
+                strategyLogger.info(`⚠️ Bearish crossover rejected: ADX ${adxValue.toFixed(1)} < 25 (ranging market)`);
                 return this.holdSignal(currentPrice, indicators, `Crossover rejected: ADX too low (${adxValue.toFixed(1)})`);
             }
 
@@ -127,8 +127,8 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 reason += ', MACD bearish';
             }
 
-            // Confirm with RSI (must be below 55 and not oversold)
-            if (indicators.rsi < 55 && indicators.rsi > config.strategy.rsiOversold) {
+            // Confirm with RSI (must be below 50 — bearish momentum territory — and not oversold)
+            if (indicators.rsi < 50 && indicators.rsi > config.strategy.rsiOversold) {
                 confidence += 0.15;
                 reason += ', RSI bearish';
             }
@@ -161,10 +161,10 @@ export class TrendFollowingStrategy extends BaseStrategy {
         else {
             // Strong uptrend continuation
             if (
-                adxValue > 18 &&
+                adxValue > 25 &&
                 indicators.ema9 > indicators.ema21 &&
                 currentPrice > indicators.ema9 &&
-                indicators.rsi > 42 &&
+                indicators.rsi > 50 &&
                 indicators.rsi < config.strategy.rsiOverbought &&
                 indicators.macd.histogram > 0 &&
                 currentVolume > indicators.volumeAvg * 1.1
@@ -191,7 +191,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 indicators.rsi < 25 &&
                 currentPrice <= indicators.bb.lower &&
                 indicators.macd.histogram > prevIndicators.macd.histogram &&
-                adxValue > 15
+                adxValue > 20
             ) {
                 signal = 'buy';
                 confidence = 0.55;
@@ -202,11 +202,31 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 indicators.rsi > 75 &&
                 currentPrice >= indicators.bb.upper &&
                 indicators.macd.histogram < prevIndicators.macd.histogram &&
-                adxValue > 15
+                adxValue > 20
             ) {
                 signal = 'sell';
                 confidence = 0.55;
                 reason = 'Extreme overbought reversal';
+            }
+        }
+
+        // ─── CANDLE BODY STRENGTH FILTER ───
+        // Reject entries on doji / indecision candles (close near midpoint of range).
+        // LONG needs close in upper 50%+ of range; SHORT needs close in lower 50%.
+        if (signal !== 'hold') {
+            const lastCandle = candles[candles.length - 1];
+            const candleRange = lastCandle.high - lastCandle.low;
+            const bodyStrength = candleRange > 0
+                ? (lastCandle.close - lastCandle.low) / candleRange
+                : 0.5;
+
+            if (signal === 'buy' && bodyStrength < 0.50) {
+                strategyLogger.info(`⚠️ LONG rejected: weak candle close (body ${(bodyStrength * 100).toFixed(0)}% of range)`);
+                return this.holdSignal(currentPrice, indicators, `Indecision candle: body ${(bodyStrength * 100).toFixed(0)}% — not bullish`);
+            }
+            if (signal === 'sell' && bodyStrength > 0.50) {
+                strategyLogger.info(`⚠️ SHORT rejected: weak candle close (body ${(bodyStrength * 100).toFixed(0)}% of range)`);
+                return this.holdSignal(currentPrice, indicators, `Indecision candle: body ${(bodyStrength * 100).toFixed(0)}% — not bearish`);
             }
         }
 

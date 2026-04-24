@@ -37,6 +37,10 @@ export interface TechnicalIndicators {
     currentVolume: number;
     /** Rolling 50-candle VWAP (Volume-Weighted Average Price) */
     vwap?: number;
+    /** Raw candle OHLC — used for candle body strength filter and AI features */
+    high: number;
+    low: number;
+    close: number;
 }
 
 export class IndicatorCalculator {
@@ -151,6 +155,9 @@ export class IndicatorCalculator {
                 volumeAvg: volumeAvg[volIdx],
                 currentVolume: volumes[i],
                 vwap: isNaN(vwapValues[i]) ? undefined : vwapValues[i],
+                high:  candles[i].high,
+                low:   candles[i].low,
+                close: candles[i].close,
             });
         }
 
