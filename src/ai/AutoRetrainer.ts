@@ -111,7 +111,7 @@ export class AutoRetrainer {
             logger.info(`🔄 AutoRetrainer: Fetching ${this.trainingPairs.length} pairs in parallel...`);
             const pairResults = await Promise.allSettled(
                 this.trainingPairs.map(symbol =>
-                    exchange.fetchOHLCV(symbol, config.timeframe, 400)
+                    exchange.fetchOHLCV(symbol, config.timeframe, 200)
                         .then(candles => ({ symbol, candles }))
                 )
             );
@@ -123,7 +123,7 @@ export class AutoRetrainer {
                 }
                 const { symbol, candles } = result.value;
 
-                if (candles.length < 200) {
+                if (candles.length < 100) {
                     logger.warn(`AutoRetrainer: Not enough data for ${symbol}, skipping.`);
                     continue;
                 }

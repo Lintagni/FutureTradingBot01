@@ -29,7 +29,7 @@ export class RandomForestModel {
             seed: 42,
             maxFeatures: 0.8,
             replacement: true,
-            nEstimators: 25 // Reduced from 50 to stay within 512mb Fly.io memory
+            nEstimators: 10 // Reduced from 25 — 5000+ samples × 25 trees was 13+ min in Node.js
         };
 
         this.model = new RFClassifier(options);
