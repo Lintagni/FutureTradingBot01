@@ -1,4 +1,4 @@
-const CACHE = 'futures-bot-v1';
+const CACHE = 'futures-bot-v3';
 const PRECACHE = ['/login.html', '/manifest.json', '/icon-192.svg', '/icon-512.svg'];
 
 self.addEventListener('install', e => {
@@ -7,15 +7,24 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({type:'window',includeUncontrolled:true})
+        .then(clients => clients.forEach(c => c.postMessage({type:'SW_UPDATED'}))))
   );
 });
 
-// Network-first for API, cache-first for static assets
+// Network-first: API, root SPA, and all JS/JSX app files (always fresh after deploy)
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api/') || url.pathname === '/') {
+  const networkFirst =
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.jsx') ||
+    url.pathname.endsWith('.js') && !url.pathname.includes('cdn') && !url.hostname.includes('unpkg') && !url.hostname.includes('jsdelivr');
+
+  if (networkFirst) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }

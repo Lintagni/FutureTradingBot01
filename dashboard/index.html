@@ -45,9 +45,14 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-// Register service worker for PWA
+// Register service worker for PWA — reload page when SW activates new version
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'SW_UPDATED') window.location.reload();
+    });
+  });
 }
 
 // ─── RESPONSIVE ───────────────────────────────────────────────────────────────
@@ -243,16 +248,16 @@ function StatCard({label,value,sub,delta,accent,t,spark,sparkColor}) {
   const pos = delta!==undefined ? delta>=0 : null;
   const col = accent ? (pos===false?t.red:pos===true?t.green:t.text) : t.text;
   return (
-    <div className="animate-in" style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:sm?'12px 10px':'16px 18px',display:'flex',flexDirection:'column',gap:4,transition:'background 0.18s',cursor:'default',minWidth:0,overflow:'hidden'}}
+    <div className="animate-in" style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:sm?'12px 10px':'14px 14px',display:'flex',flexDirection:'column',gap:4,transition:'background 0.18s',cursor:'default',minWidth:0,overflow:'hidden'}}
       onMouseEnter={e=>e.currentTarget.style.background=t.cardHover}
       onMouseLeave={e=>e.currentTarget.style.background=t.card}>
-      <div style={{fontSize:9,fontWeight:600,letterSpacing:'0.08em',color:t.textMuted,textTransform:'uppercase',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{label}</div>
+      <div style={{fontSize:9,fontWeight:600,letterSpacing:'0.07em',color:t.textMuted,textTransform:'uppercase',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{label}</div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:4,minWidth:0}}>
-        <div style={{minWidth:0,flex:1,overflow:'hidden'}}>
-          <div style={{fontSize:sm?16:22,fontWeight:700,color:col,letterSpacing:'-0.02em',lineHeight:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{value}</div>
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{fontSize:sm?15:18,fontWeight:700,color:col,letterSpacing:'-0.02em',lineHeight:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{value}</div>
           {sub && <div style={{fontSize:10,color:t.textDim,marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{sub}</div>}
         </div>
-        {spark && !sm && <Sparkline data={spark} color={sparkColor||col} width={80} height={38}/>}
+        {spark && !sm && <Sparkline data={spark} color={sparkColor||col} width={54} height={30}/>}
       </div>
     </div>
   );
@@ -608,11 +613,8 @@ function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
       <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 320px',gap:16}}>
         <div style={card}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-            <div>
-              <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Cumulative P&L</div>
-              <div style={{fontSize:isMobile?18:22,fontWeight:700,color:last20PnL>=0?t.green:t.red,marginTop:4}}>{fmt(last20PnL)}</div>
-            </div>
-            <Badge color="green" t={t}>Last 20</Badge>
+            <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Last 20 Trade Summary</div>
+            <Badge color={last20PnL>=0?'green':'red'} t={t}>{fmt(last20PnL)}</Badge>
           </div>
           <div style={{height:isMobile?140:170}}><PnLChart trades={closedTrades} t={t}/></div>
         </div>
