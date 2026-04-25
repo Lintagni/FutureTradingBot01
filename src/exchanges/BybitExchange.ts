@@ -67,8 +67,10 @@ export class BybitExchange extends BaseExchange {
         try {
             // Bybit public endpoint — no API key needed
             const resp = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const json: any = await resp.json();
             const list: any[] = json?.result?.list || [];
+            if (list.length === 0) throw new Error('empty result list');
             const tickers: { [symbol: string]: any } = {};
             for (const t of list) {
                 // Convert "SOLUSDT" → "SOL/USDT:USDT" (CCXT linear futures symbol format)
@@ -90,9 +92,39 @@ export class BybitExchange extends BaseExchange {
             exchangeLogger.info(`[PAPER] fetchTickers: got ${Object.keys(tickers).length} linear futures pairs from Bybit public API`);
             return tickers;
         } catch (e: any) {
-            exchangeLogger.warn(`[PAPER] fetchTickers public API failed: ${e?.message} — returning empty`);
-            return {};
+            exchangeLogger.warn(`[PAPER] fetchTickers Bybit blocked (${e?.message}) — falling back to Kraken spot prices`);
+            return this.fetchTickersFromKraken();
         }
+    }
+
+    // Kraken fallback for fetchTickers — builds a tickers map for all monitored pairs
+    private async fetchTickersFromKraken(): Promise<{ [symbol: string]: any }> {
+        const monitored: string[] = (config as any).futures?.monitoredPairs
+            || (config as any).strategy?.monitoredPairs
+            || ['BTC/USDT:USDT','ETH/USDT:USDT','SOL/USDT:USDT','XRP/USDT:USDT','DOGE/USDT:USDT','AVAX/USDT:USDT','LINK/USDT:USDT','BNB/USDT:USDT'];
+
+        const k = this.getKraken();
+        const tickers: { [symbol: string]: any } = {};
+
+        await Promise.all(monitored.map(async (symbol) => {
+            try {
+                const krakenSym = this.toKrakenSymbol(symbol);
+                const t = await k.fetchTicker(krakenSym);
+                tickers[symbol] = {
+                    symbol,
+                    last: t.last || 0,
+                    bid: t.bid || t.last || 0,
+                    ask: t.ask || t.last || 0,
+                    quoteVolume: t.quoteVolume || 0,
+                    baseVolume: t.baseVolume || 0,
+                    timestamp: t.timestamp || Date.now(),
+                    close: t.last || 0,
+                };
+            } catch (_) { /* skip unavailable pair */ }
+        }));
+
+        exchangeLogger.info(`[PAPER] Kraken fallback tickers: ${Object.keys(tickers).length}/${monitored.length} pairs`);
+        return tickers;
     }
 
     // Override fetchOHLCV — fall back to Kraken in paper mode if Bybit unreachable
