@@ -101,17 +101,21 @@ export class AutoRetrainer {
             const allLabels: number[] = [];
 
             const ATR_SL_MULT = config.strategy.atrMultiplierSL || 2.0;
-            // Training TP = ATR×2 (matches partial-TP trigger, ~50% natural hit rate).
-            // Old ATR×4 only hit ~30% → model learned "always loss" and was useless.
-            const ATR_TP_MULT = 2.0;
-            const LOOKAHEAD = 48;
+            // Training TP uses ATR×2 (same as SL distance) — a 1:1 binary question:
+            // "does this direction win or lose within 60 candles?"
+            // ATR×4 hits only ~19% naturally (81% loss labels — model learns to say "loss" always).
+            // ATR×3 hits ~21%. ATR×2 hits ~45-50%, giving the model a near-balanced dataset
+            // where a good signal genuinely has higher than coin-flip probability.
+            // Live exits remain ATR×4 — this is the AI's decision quality label, not the exit target.
+            const ATR_TP_MULT = ATR_SL_MULT; // 2.0 × ATR
+            const LOOKAHEAD = 60; // 15h on 15m candles — enough time for ATR×3 to be hit
 
             // Fetch all pairs in parallel — sequential fetches with Bybit→Kraken fallback
             // were stacking up to 5+ minutes; parallel cuts it to the slowest single fetch.
             logger.info(`🔄 AutoRetrainer: Fetching ${this.trainingPairs.length} pairs in parallel...`);
             const pairResults = await Promise.allSettled(
                 this.trainingPairs.map(symbol =>
-                    exchange.fetchOHLCV(symbol, config.timeframe, 300)
+                    exchange.fetchOHLCV(symbol, config.timeframe, 500)
                         .then(candles => ({ symbol, candles }))
                 )
             );
@@ -193,19 +197,40 @@ export class AutoRetrainer {
                     const longFeat  = [...baseFeat, 1.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
                     const shortFeat = [...baseFeat, 0.0].map(f => (typeof f === 'number' && isFinite(f) ? f : 0));
 
-                    if (longFeat.every(v => isFinite(v))) {
+                    // Strategy pre-filter: only train on candles where the strategy would
+                    // actually signal. Training on random candles teaches the model a
+                    // different decision space than it operates in during live trading.
+                    const rsi = indicators.rsi || 50;
+                    const macdHist = indicators.macd?.histogram || 0;
+                    const isValidLong =
+                        adxValue > 25 &&
+                        indicators.ema9 > indicators.ema21 &&
+                        currentPrice > indicators.ema9 &&
+                        rsi > 50 && rsi < 72 &&
+                        macdHist > 0 &&
+                        bodyStrength > 0.50;
+
+                    const isValidShort =
+                        adxValue > 25 &&
+                        indicators.ema9 < indicators.ema21 &&
+                        currentPrice < indicators.ema9 &&
+                        rsi < 50 && rsi > 28 &&
+                        macdHist < 0 &&
+                        bodyStrength < 0.50;
+
+                    if (isValidLong && longFeat.every(v => isFinite(v))) {
                         allFeatures.push(longFeat);
                         allLabels.push(longLabel);
                     }
-                    if (shortFeat.every(v => isFinite(v))) {
+                    if (isValidShort && shortFeat.every(v => isFinite(v))) {
                         allFeatures.push(shortFeat);
                         allLabels.push(shortLabel);
                     }
                 }
             }
 
-            if (allFeatures.length < 100) {
-                logger.warn(`AutoRetrainer: Not enough data (${allFeatures.length} samples). Skipping retrain.`);
+            if (allFeatures.length < 50) {
+                logger.warn(`AutoRetrainer: Not enough strategy-filtered data (${allFeatures.length} samples). Skipping retrain.`);
                 this.isRetraining = false;
                 return;
             }
@@ -241,13 +266,16 @@ export class AutoRetrainer {
                 return;
             }
 
-            // ─── Mix in own trade history (30% of total) ───
-            // Own trades are the most relevant signal: they show what THIS bot wins/loses on.
+            // ─── Mix in own trade history ───
+            // Own trades are the most relevant signal — actual results from THIS strategy.
+            // With 300+ real trades available, own data is more reliable than synthetic candle labels.
+            // Target: 65% own trades, 35% synthetic market data.
+            // If own trades are scarce (<100 samples), fall back to 50/50.
             const ownSamples = await getOwnTradesSamples(500);
             let ownTradeCount = 0;
             if (ownSamples.features.length >= 10) {
-                // Scale own trades to ~30% of total: ownN / (ownN + marketN) = 0.30
-                const maxOwn = Math.min(ownSamples.features.length, Math.round(balancedFeatures.length * 3 / 7));
+                const ownRatio = ownSamples.features.length >= 100 ? 1.86 : 1.0; // 65% or 50%
+                const maxOwn = Math.min(ownSamples.features.length, Math.round(balancedFeatures.length * ownRatio));
                 const shuffledOwn = ownSamples.features
                     .map((f, i) => ({ f, l: ownSamples.labels[i] }))
                     .sort(() => Math.random() - 0.5)
@@ -270,8 +298,9 @@ export class AutoRetrainer {
             }
 
             // ─── Backup current model before overwriting ───
-            const modelPath = path.join(process.cwd(), 'models', 'random_forest.json');
-            const backupPath = path.join(process.cwd(), 'models', 'random_forest_backup.json');
+            const modelDir = fs.existsSync('/data') ? '/data/models' : path.join(process.cwd(), 'models');
+            const modelPath = path.join(modelDir, 'random_forest.json');
+            const backupPath = path.join(modelDir, 'random_forest_backup.json');
             if (fs.existsSync(modelPath)) {
                 fs.copyFileSync(modelPath, backupPath);
             }

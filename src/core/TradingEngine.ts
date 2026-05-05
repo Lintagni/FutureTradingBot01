@@ -526,9 +526,16 @@ export class TradingEngine {
         const aiScore = aiLearning.getPrediction(features);
         logger.info(`🤖 AI Score (${dirLabel}): ${(aiScore * 100).toFixed(1)}% | Threshold: ${(baseThreshold * 100).toFixed(0)}%`);
 
-        // AI size scaling: the 5% floor is the model's minimum output (not a real signal).
-        // Only hard-block below 4% which is physically impossible from predictProbability().
-        // Real gating is done by quality score + HTF + funding filters below.
+        // AI hard gate — blocks entries where the model actively predicts loss (< 0.48).
+        // Only active after 10+ own closed trades so the strategy-filtered retraining
+        // has enough data to be meaningful. Below 0.48 = model says "lose"; 0.48-0.55 =
+        // uncertain → still trade at 80% size (existing behaviour).
+        const ownTradeCount = await tradeRepository.getClosedTradeCount('futures');
+        if (ownTradeCount >= 10 && aiScore < 0.48) {
+            logger.warn(`❌ AI filter: ${symbol} score ${(aiScore * 100).toFixed(1)}% predicts loss — skipping ${dirLabel}`);
+            return;
+        }
+
         let aiSizeMultiplier = 1.0;
         if (aiScore < 0.04) {
             logger.warn(`❌ AI error state for ${symbol} (${(aiScore * 100).toFixed(1)}%) — skipping`);
@@ -613,23 +620,24 @@ export class TradingEngine {
             return;
         }
 
-        // ─── 3.5. Hard SHORT gate: require both HTF bearish ──────────────────
-        // Shorts in uptrending markets are the main source of losses.
-        // If either 1h or 4h HTF is bullish (confirmed data, not null), block the short.
-        if (isShort && (htfBullish1h === true || htfBullish4h === true)) {
-            logger.warn(`❌ SHORT blocked: macro not bearish (1h:${htfBullish1h} 4h:${htfBullish4h}) — skipping ${symbol}`);
+        // ─── 3.5. Hard SHORT gate: require 1h bearish ────────────────────────
+        // Block shorts when the 1h (more responsive) frame is bullish.
+        // 4h misalignment is already penalised via -0.10 confidence above and the
+        // quality score — double-gating on 4h eliminated all correction-short setups.
+        if (isShort && htfBullish1h === true) {
+            logger.warn(`❌ SHORT blocked: 1h is bullish — skipping ${symbol}`);
             return;
         }
 
         // ─── 4. Trade Quality Score ───────────────────────────────────────────
-        // Composite 0–100 score across HTF alignment, volume, MACD, funding.
-        // Minimum 50/100 to enter (both HTF aligned = 50pts floor).
+        // Composite 0–100 score across HTF alignment, volume, MACD, funding, RSI momentum.
+        // Minimum 40/100 to enter (lowered from 50; RSI component added to compensate).
         const quality = this.computeQualityScore(
             isLong, htfBullish1h, htfBullish4h, fundingRateValue, signal.indicators
         );
         logger.info(`📊 Quality Score: ${quality.score}/100 | ${quality.breakdown}`);
-        if (quality.score < 50) {
-            logger.warn(`❌ Quality score ${quality.score}/100 < 50 — skipping ${dirLabel} for ${symbol}`);
+        if (quality.score < 40) {
+            logger.warn(`❌ Quality score ${quality.score}/100 < 40 — skipping ${dirLabel} for ${symbol}`);
             return;
         }
 
@@ -995,11 +1003,12 @@ export class TradingEngine {
             parts.push(`4h:12(n/a)`);
         }
 
-        // Volume surge (20pts)
+        // Volume surge (20pts) — threshold lowered to 1.3x (strategy continuation needs 1.1x;
+        // 1.5x was blocking valid signals that already passed the strategy's own volume gate)
         const volRatio = indicators.volumeAvg > 0
             ? (indicators.currentVolume || 0) / indicators.volumeAvg
             : 0;
-        const volPts = volRatio >= 1.5 ? 20 : volRatio >= 1.2 ? 10 : 0;
+        const volPts = volRatio >= 1.3 ? 20 : volRatio >= 1.1 ? 10 : 0;
         score += volPts;
         parts.push(`Vol:${volPts}`);
 
@@ -1018,6 +1027,19 @@ export class TradingEngine {
         }
         score += fundPts;
         parts.push(`Fund:${fundPts}`);
+
+        // RSI momentum alignment (10pts) — rewards entries with clear directional momentum
+        const rsi = indicators.rsi || 50;
+        let rsiPts = 0;
+        if (isLong) {
+            if (rsi >= 52 && rsi <= 65) rsiPts = 10;
+            else if (rsi >= 48 && rsi < 52) rsiPts = 5;
+        } else {
+            if (rsi >= 35 && rsi <= 48) rsiPts = 10;
+            else if (rsi > 48 && rsi <= 52) rsiPts = 5;
+        }
+        score += rsiPts;
+        parts.push(`RSI:${rsiPts}`);
 
         return { score, breakdown: parts.join(' | ') };
     }
@@ -1240,12 +1262,14 @@ export class TradingEngine {
         unrealizedPnL: number;
         recentWinRate: number;
         lifetimeWinRate: number;
+        recent50WinRate: number;
+        recent50TradeCount: number;
         walletBalances: Map<string, number>;
         readiness: {
             score: number;
             thresholds: {
                 trades:       { value: number;  target: number; pass: boolean };
-                winRate:      { value: number;  target: number; pass: boolean };
+                winRate:      { value: number;  target: number; pass: boolean; label?: string };
                 profitable:   { value: number;  target: number; pass: boolean };
                 modelTrained: { value: number;  target: number; pass: boolean };
                 modelFresh:   { value: number;  target: number; pass: boolean };
@@ -1257,6 +1281,7 @@ export class TradingEngine {
         const totalPnL = await tradeRepository.getTotalPnL('futures');
         const lifetimeWinRate = await tradeRepository.getLifetimeWinRate('futures');
         const recentWinRate = aiLearning.getWinRate('futures');
+        const recent50 = await tradeRepository.getRecentWinRate(50, 'futures');
 
         const monitoredPairs = this.activePairs;
 
@@ -1332,12 +1357,13 @@ export class TradingEngine {
             : 9999;
 
         const readinessThresholds = {
-            trades:       { value: closedTradeCount,  target: 30, pass: closedTradeCount >= 30 },
-            winRate:      { value: lifetimeWinRate,   target: 55, pass: lifetimeWinRate >= 55 },
-            profitable:   { value: totalPnL,          target: 0,  pass: totalPnL > 0 },
+            trades:       { value: closedTradeCount,       target: 30, pass: closedTradeCount >= 30 },
+            winRate:      { value: recent50.winRate,        target: 55, pass: recent50.winRate >= 55,
+                            label: `Last ${recent50.tradeCount} trades` },
+            profitable:   { value: totalPnL,               target: 0,  pass: totalPnL > 0 },
             modelTrained: { value: retrainerStatus.lastRetrain ? 1 : 0, target: 1, pass: !!retrainerStatus.lastRetrain },
-            modelFresh:   { value: modelAge,          target: 48, pass: modelAge < 48 },
-            dailyHealth:  { value: dailyPnL,          target: 0,  pass: dailyPnL >= 0 },
+            modelFresh:   { value: modelAge,               target: 48, pass: modelAge < 48 },
+            dailyHealth:  { value: dailyPnL,               target: 0,  pass: dailyPnL >= 0 },
         };
         const passCount = Object.values(readinessThresholds).filter(t => t.pass).length;
         const readinessScore = Math.round((passCount / Object.keys(readinessThresholds).length) * 100);
@@ -1352,6 +1378,8 @@ export class TradingEngine {
             unrealizedPnL,
             recentWinRate,
             lifetimeWinRate,
+            recent50WinRate: recent50.winRate,
+            recent50TradeCount: recent50.tradeCount,
             walletBalances,
             readiness: { score: readinessScore, thresholds: readinessThresholds },
         };

@@ -583,7 +583,8 @@ function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
   const totalPnL = status?.totalPnL ?? 0;
   const dailyPnL = status?.dailyPnL ?? 0;
   const balance = Object.values(status?.walletBalances||{})[0] ?? 0;
-  const winRate = (status?.lifetimeWinRate ?? 0).toFixed(1);
+  const winRate = (status?.recent50WinRate ?? status?.lifetimeWinRate ?? 0).toFixed(1);
+  const winRateSub = status?.recent50TradeCount ? `Last ${status.recent50TradeCount} trades` : 'All time';
   const wins = closedTrades.filter(tr=>tr.pnl>0).length;
 
   const liveBalance = useAnimatedNumber(balance, 2, 600);
@@ -611,7 +612,7 @@ function DashboardSection({t,setPage,status,trades,wsConnected,isMobile}) {
         <StatCard t={t} label="USDT Balance" value={`$${liveBalance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`} sub={status?.mode==='paper'?'Paper account':'Live account'} spark={cumSpark} sparkColor={(cumSpark[cumSpark.length-1]??0)>=0?t.green:t.red}/>
         <StatCard t={t} label="Daily P&L" value={fmt(livePnL)} sub="Today" accent delta={livePnL} spark={cumSpark} sparkColor={livePnL>=0?t.green:t.red}/>
         <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="All time" accent delta={totalPnL} spark={cumSpark} sparkColor={totalPnL>=0?t.green:t.red}/>
-        <StatCard t={t} label="Win Rate" value={winRate+'%'} sub={`${wins}/${closedTrades.length} trades`} spark={winSpark} sparkColor={t.accent}/>
+        <StatCard t={t} label="Win Rate" value={winRate+'%'} sub={winRateSub} spark={winSpark} sparkColor={t.accent}/>
         <StatCard t={t} label="Open Positions" value={status?.openPositions??0} sub={`${status?.leverage??3}× isolated`}/>
         <StatCard t={t} label="Monitored Pairs" value={status?.monitoredPairs?.length??0} sub="Active pairs"/>
       </div>
@@ -772,10 +773,10 @@ function HistorySection({t,trades=[],isMobile}) {
   return (
     <div style={{display:'flex',flexDirection:'column',gap:18}}>
       <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?10:12}}>
-        <StatCard t={t} label="Total Trades" value={filtered.length} sub="Closed"/>
-        <StatCard t={t} label="Win Rate" value={(wins/Math.max(filtered.length,1)*100).toFixed(1)+'%'} sub={`${wins} wins`}/>
-        <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="Net" accent delta={totalPnL}/>
-        <StatCard t={t} label="Avg P&L" value={fmt(totalPnL/Math.max(filtered.length,1))} sub="Per trade" accent delta={totalPnL/Math.max(filtered.length,1)}/>
+        <StatCard t={t} label="Total Trades" value={filtered.length} sub="Last 100 loaded"/>
+        <StatCard t={t} label="Win Rate" value={(wins/Math.max(filtered.length,1)*100).toFixed(1)+'%'} sub={`${wins}/${filtered.length} shown`}/>
+        <StatCard t={t} label="Total P&L" value={fmt(totalPnL)} sub="Last 100 trades" accent delta={totalPnL}/>
+        <StatCard t={t} label="Avg P&L" value={fmt(totalPnL/Math.max(filtered.length,1))} sub="Per trade (shown)" accent delta={totalPnL/Math.max(filtered.length,1)}/>
       </div>
       <div style={card}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,gap:12,flexWrap:'wrap'}}>
@@ -825,6 +826,70 @@ function HistorySection({t,trades=[],isMobile}) {
         {filtered.length===0 && <div style={{padding:'40px',textAlign:'center',color:t.textMuted,fontSize:13}}>No trades match filter</div>}
       </div>
       <TradeDrawer trade={drawerTrade} t={t} onClose={()=>setDrawerTrade(null)}/>
+    </div>
+  );
+}
+
+function ReadinessCard({t, readiness}) {
+  const [hover, setHover] = React.useState(false);
+  const score   = readiness?.score ?? 0;
+  const thresh  = readiness?.thresholds ?? {};
+  const isReady = score >= 83;
+  const dotColor = score >= 83 ? t.green : score >= 50 ? '#f59e0b' : t.accent;
+
+  const checks = [
+    { key:'trades',       label:'Closed Trades',  fmt: v => `${v} trades`,    target:'≥ 30' },
+    { key:'winRate',      label:'Win Rate',        fmt: v => `${v.toFixed(1)}%`, target:'≥ 55%', sublabel: thresh.winRate?.label },
+    { key:'profitable',   label:'Total P&L',       fmt: v => `$${v.toFixed(2)}`, target:'> $0' },
+    { key:'modelTrained', label:'AI Model',        fmt: v => v ? 'Trained' : 'Not trained', target:'Trained' },
+    { key:'modelFresh',   label:'Model Age',       fmt: v => v >= 9999 ? 'Never trained' : `${v}h ago`, target:'< 48h' },
+    { key:'dailyHealth',  label:"Today's P&L",     fmt: v => `$${v.toFixed(2)}`, target:'≥ $0' },
+  ];
+
+  return (
+    <div style={{position:'relative'}}
+      onMouseEnter={()=>setHover(true)}
+      onMouseLeave={()=>setHover(false)}>
+      <div style={{padding:'14px',background:t.bg,borderRadius:8,border:`1px solid ${isReady?t.border:dotColor+'44'}`,cursor:'default'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+          <div style={{display:'flex',alignItems:'baseline',gap:3}}>
+            <div style={{fontSize:13,fontWeight:700,color:isReady?t.text:dotColor}}>{score}</div>
+            <div style={{fontSize:10,color:t.textDim}}>/100</div>
+          </div>
+          <div style={{width:7,height:7,borderRadius:'50%',background:dotColor,marginTop:3,boxShadow:`0 0 5px ${dotColor}`,animation:'pulse 2s infinite'}}/>
+        </div>
+        <div style={{width:'100%',height:3,background:t.border,borderRadius:2,marginBottom:6,overflow:'hidden'}}>
+          <div style={{width:`${score}%`,height:'100%',background:dotColor,borderRadius:2,transition:'width 0.4s'}}/>
+        </div>
+        <div style={{fontSize:10,fontWeight:600,color:t.textMuted,letterSpacing:'0.06em',textTransform:'uppercase'}}>Live Readiness</div>
+        <div style={{fontSize:10,color:t.textDim,marginTop:2}}>{isReady?'Ready for live':'Hover for details'}</div>
+      </div>
+      {hover && (
+        <div style={{position:'absolute',bottom:'calc(100% + 6px)',left:0,zIndex:99,background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:'12px 14px',minWidth:220,boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
+          <div style={{fontSize:10,fontWeight:700,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>Readiness Breakdown</div>
+          {checks.map(({key,label,fmt,target,sublabel})=>{
+            const th = thresh[key];
+            const pass = th?.pass ?? false;
+            const val = th?.value ?? 0;
+            return (
+              <div key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 0',borderBottom:`1px solid ${t.border}22`}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:12}}>{pass?'✅':'❌'}</span>
+                  <div>
+                    <span style={{fontSize:11,color:t.text}}>{label}</span>
+                    {sublabel && <div style={{fontSize:9,color:t.textDim}}>{sublabel}</div>}
+                  </div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:11,fontWeight:600,color:pass?t.green:t.accent}}>{fmt(val)}</div>
+                  <div style={{fontSize:9,color:t.textDim}}>target {target}</div>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{marginTop:8,fontSize:10,color:t.textDim,textAlign:'center'}}>{Object.values(thresh).filter(x=>x.pass).length}/{checks.length} checks passed</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -892,10 +957,6 @@ function AnalyticsSection({t,trades=[],status,wsConnected,isMobile}) {
         <div style={{fontSize:11,fontWeight:600,color:t.textMuted,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Bot Health</div>
         <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?10:12}}>
           {(()=>{
-            const ready=status?.readiness;
-            const tradesCompleted=ready?.tradesCompleted??0;
-            const tradesRequired=ready?.tradesRequired??100;
-            const isReady=ready?.isReady??false;
             const openPos=status?.openPositions??0;
             const monitored=status?.monitoredPairs?.length??0;
             const avgConf=closedTrades.length>0?(closedTrades.reduce((a,b)=>a+b.confidence,0)/closedTrades.length).toFixed(0)+'%':'—';
@@ -903,10 +964,9 @@ function AnalyticsSection({t,trades=[],status,wsConnected,isMobile}) {
               {label:'Status',          value:status?.isRunning?'RUNNING':'STOPPED', sub:status?.mode??'—',              ok:status?.isRunning??false},
               {label:'Mode',            value:status?.mode?.toUpperCase()??'—',       sub:status?.marginMode??'isolated',  ok:true},
               {label:'Leverage',        value:(status?.leverage??3)+'×',              sub:'Isolated margin',               ok:true},
-              {label:'Open Positions',  value:String(openPos),                        sub:`of max allowed`,                ok:true},
+              {label:'Open Positions',  value:String(openPos),                        sub:'of max allowed',                ok:true},
               {label:'Monitored Pairs', value:String(monitored),                      sub:'Active scan',                   ok:monitored>0},
               {label:'Avg Confidence',  value:avgConf,                                sub:'Last trades',                   ok:true},
-              {label:'Live Readiness',  value:`${tradesCompleted}/${tradesRequired}`, sub:isReady?'Ready for live':'Needs more trades', ok:isReady},
               {label:'WebSocket',       value:wsConnected?'Connected':'Offline',      sub:'5s push interval',              ok:wsConnected},
             ];
             return items;
@@ -920,6 +980,7 @@ function AnalyticsSection({t,trades=[],status,wsConnected,isMobile}) {
               <div style={{fontSize:10,color:t.textDim,marginTop:2}}>{item.sub}</div>
             </div>
           ))}
+          <ReadinessCard t={t} readiness={status?.readiness}/>
         </div>
       </div>
     </div>

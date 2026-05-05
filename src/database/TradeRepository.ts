@@ -423,6 +423,26 @@ export class TradeRepository {
     }
 
     /**
+     * Win rate over the most recent N closed trades — used for readiness check so that
+     * old-strategy trades don't pollute the current strategy's performance signal.
+     */
+    async getRecentWinRate(n: number = 50, marketType: string = 'futures'): Promise<{ winRate: number; tradeCount: number }> {
+        try {
+            const recent = await prisma.trade.findMany({
+                where: { status: 'closed', marketType },
+                orderBy: { exitTime: 'desc' },
+                take: n,
+                select: { realizedPnl: true },
+            });
+            if (recent.length === 0) return { winRate: 0, tradeCount: 0 };
+            const wins = recent.filter(t => (t.realizedPnl ?? 0) > 0).length;
+            return { winRate: (wins / recent.length) * 100, tradeCount: recent.length };
+        } catch {
+            return { winRate: 0, tradeCount: 0 };
+        }
+    }
+
+    /**
      * Count how many closed trades have stored entryFeatures (own-trade learning data).
      */
     async getOwnTradeFeatureCount(marketType: string = 'futures'): Promise<number> {

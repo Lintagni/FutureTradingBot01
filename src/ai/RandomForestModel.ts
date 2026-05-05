@@ -11,8 +11,11 @@ export class RandomForestModel {
     private modelPath: string;
 
     constructor() {
-        // Ensure models directory exists
-        const modelDir = path.join(process.cwd(), 'models');
+        // Use /data/models on persistent volume (survives restarts/deploys).
+        // Fall back to process.cwd()/models for local dev where /data doesn't exist.
+        const persistentDir = '/data/models';
+        const localDir = path.join(process.cwd(), 'models');
+        const modelDir = fs.existsSync('/data') ? persistentDir : localDir;
         if (!fs.existsSync(modelDir)) {
             fs.mkdirSync(modelDir, { recursive: true });
         }

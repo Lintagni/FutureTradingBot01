@@ -159,7 +159,9 @@ export class TrendFollowingStrategy extends BaseStrategy {
         }
         // Continuation & Extreme conditions
         else {
-            // Strong uptrend continuation
+            const ema50 = (indicators as any).ema50 as number | undefined;
+
+            // Strong uptrend continuation — only enter if not over-extended above EMA50
             if (
                 adxValue > 25 &&
                 indicators.ema9 > indicators.ema21 &&
@@ -167,24 +169,39 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 indicators.rsi > 50 &&
                 indicators.rsi < config.strategy.rsiOverbought &&
                 indicators.macd.histogram > 0 &&
-                currentVolume > indicators.volumeAvg * 1.1
+                currentVolume > indicators.volumeAvg * 1.1 &&
+                // Price must be within 2% above EMA50 — avoids chasing late-trend extensions
+                (!ema50 || currentPrice < ema50 * 1.02)
             ) {
                 signal = 'buy';
                 confidence = 0.68;
                 reason = 'Uptrend continuation (ADX+MACD confirmed)';
+                if (ema50 && currentPrice >= ema50 && currentPrice < ema50 * 1.005) {
+                    confidence += 0.07;
+                    reason += ', fresh EMA50 breakout';
+                } else if (ema50 && currentPrice >= ema50 * 1.015) {
+                    confidence -= 0.05;
+                    reason += ', slightly extended above EMA50';
+                }
             }
-            // Strong downtrend continuation (exit signal)
+            // Strong downtrend continuation
             else if (
                 isTrending &&
                 indicators.ema9 < indicators.ema21 &&
                 currentPrice < indicators.ema9 &&
                 indicators.rsi < 50 &&
                 indicators.macd.MACD < indicators.macd.signal &&
-                indicators.macd.histogram < 0
+                indicators.macd.histogram < 0 &&
+                // Price must be within 2% below EMA50 — avoids shorting already-extended drops
+                (!ema50 || currentPrice > ema50 * 0.98)
             ) {
                 signal = 'sell';
                 confidence = 0.75;
                 reason = 'Downtrend continuation';
+                if (ema50 && currentPrice <= ema50 && currentPrice > ema50 * 0.995) {
+                    confidence += 0.05;
+                    reason += ', fresh EMA50 break';
+                }
             }
             // Oversold bounce
             else if (

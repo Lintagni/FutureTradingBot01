@@ -22,8 +22,11 @@ export async function getOwnTradesSamples(limit: number = 500): Promise<OwnTrade
     for (const trade of trades) {
         if (!trade.entryFeatures) continue;
         try {
-            const feat = JSON.parse(trade.entryFeatures) as number[];
-            if (!Array.isArray(feat) || feat.length !== 9) continue;
+            let feat = JSON.parse(trade.entryFeatures) as number[];
+            if (!Array.isArray(feat) || feat.length < 8 || feat.length > 9) continue;
+            // Older trades stored 8 features (before bodyStrength was added at position 7).
+            // Pad with neutral bodyStrength=0.5 so they remain usable rather than being discarded.
+            if (feat.length === 8) feat = [...feat.slice(0, 7), 0.5, feat[7]];
             if (!feat.every(v => Number.isFinite(v))) continue;
 
             const isWin = (trade.realizedPnl ?? 0) > 0;

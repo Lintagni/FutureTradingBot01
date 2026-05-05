@@ -12,6 +12,8 @@ export class BybitExchange extends BaseExchange {
     // ── Kraken fallback for paper mode when Bybit/Binance are geo-blocked ─────
     // Kraken is US-licensed and accessible from US cloud servers.
     private krakenExchange: ccxt.Exchange | null = null;
+    // Throttle: only log Kraken fallback warning once per 60s per symbol to avoid log spam
+    private krakenWarnedAt: Map<string, number> = new Map();
 
     private getKraken(): ccxt.Exchange {
         if (!this.krakenExchange) {
@@ -52,7 +54,11 @@ export class BybitExchange extends BaseExchange {
             return await super.fetchTicker(symbol);
         } catch (e: any) {
             if (config.mode === 'paper') {
-                exchangeLogger.warn(`Bybit blocked, using Kraken for ${symbol}`);
+                const now = Date.now();
+                if ((now - (this.krakenWarnedAt.get(symbol) || 0)) > 60000) {
+                    exchangeLogger.warn(`Bybit blocked, using Kraken for ${symbol}`);
+                    this.krakenWarnedAt.set(symbol, now);
+                }
                 return this.krakenTicker(symbol);
             }
             throw e;
@@ -133,7 +139,12 @@ export class BybitExchange extends BaseExchange {
             return await super.fetchOHLCV(symbol, timeframe, limit);
         } catch (e: any) {
             if (config.mode === 'paper') {
-                exchangeLogger.warn(`Bybit blocked, using Kraken OHLCV for ${symbol}`);
+                const key = `ohlcv:${symbol}`;
+                const now = Date.now();
+                if ((now - (this.krakenWarnedAt.get(key) || 0)) > 60000) {
+                    exchangeLogger.warn(`Bybit blocked, using Kraken OHLCV for ${symbol}`);
+                    this.krakenWarnedAt.set(key, now);
+                }
                 return this.krakenOHLCV(symbol, timeframe, limit);
             }
             throw e;

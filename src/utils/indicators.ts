@@ -37,6 +37,8 @@ export interface TechnicalIndicators {
     currentVolume: number;
     /** Rolling 50-candle VWAP (Volume-Weighted Average Price) */
     vwap?: number;
+    /** EMA50 — used to detect late-trend entries and avoid chasing extended moves */
+    ema50?: number;
     /** Raw candle OHLC — used for candle body strength filter and AI features */
     high: number;
     low: number;
@@ -69,6 +71,7 @@ export class IndicatorCalculator {
         // EMA
         const ema9Values = EMA.calculate({ period: 9, values: closes });
         const ema21Values = EMA.calculate({ period: 21, values: closes });
+        const ema50Values = EMA.calculate({ period: 50, values: closes });
 
         // RSI
         const rsiValues = RSI.calculate({ period: 14, values: closes });
@@ -133,6 +136,7 @@ export class IndicatorCalculator {
             // Calculate local indices for each indicator
             const ema9Idx = i - (len - ema9Values.length);
             const ema21Idx = i - (len - ema21Values.length);
+            const ema50Idx = i - (len - ema50Values.length);
             const rsiIdx = i - (len - rsiValues.length);
             const macdIdx = i - (len - macdValues.length);
             const bbIdx = i - (len - bbValues.length);
@@ -155,6 +159,7 @@ export class IndicatorCalculator {
                 volumeAvg: volumeAvg[volIdx],
                 currentVolume: volumes[i],
                 vwap: isNaN(vwapValues[i]) ? undefined : vwapValues[i],
+                ema50: ema50Idx >= 0 ? ema50Values[ema50Idx] : undefined,
                 high:  candles[i].high,
                 low:   candles[i].low,
                 close: candles[i].close,
