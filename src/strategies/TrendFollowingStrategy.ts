@@ -29,7 +29,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
         const adxValue = typeof indicators.adx === 'object'
             ? (indicators.adx as any).adx || 0
             : indicators.adx || 0;
-        const isTrending = adxValue > 25; // ADX 25+ = confirmed trend (18 was too loose, allowed ranging entries)
+        const isTrending = adxValue > 30; // ADX 30+ = confirmed trend (25 still allowed too many choppy entries)
 
         // Check for bullish signals
         const bullishCrossover = IndicatorCalculator.isBullishCrossover(

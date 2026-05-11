@@ -81,6 +81,9 @@ export class TradingEngine {
     private consecutiveLosses: Map<string, number> = new Map();
     private cooldownRemaining: Map<string, number> = new Map();
 
+    // ─── Re-entry cooldown: prevents immediately re-entering after a close ───
+    private reEntryCooldown: Map<string, number> = new Map();
+
     // ─── Market Scanner ───
     private marketScanner: MarketScanner | null = null;
     private scannerInterval: ReturnType<typeof setInterval> | null = null;
@@ -490,6 +493,14 @@ export class TradingEngine {
         // Only act on directional signals, not hold
         if (signal.signal === 'hold') return;
 
+        // Re-entry cooldown: skip 2 cycles after any close to avoid whipsaw re-entry
+        const reEntryCooldown = this.reEntryCooldown.get(symbol) || 0;
+        if (reEntryCooldown > 0) {
+            this.reEntryCooldown.set(symbol, reEntryCooldown - 1);
+            logger.info(`⏸️ [${symbol}] Re-entry cooldown: ${reEntryCooldown} cycles remaining — skipping entry`);
+            return;
+        }
+
         // In-memory fast check — prevents wasted API calls when max positions already reached
         if (this.positions.size >= config.risk.maxOpenPositions) return;
 
@@ -620,12 +631,20 @@ export class TradingEngine {
             return;
         }
 
-        // ─── 3.5. Hard SHORT gate: require 1h bearish ────────────────────────
-        // Block shorts when the 1h (more responsive) frame is bullish.
-        // 4h misalignment is already penalised via -0.10 confidence above and the
-        // quality score — double-gating on 4h eliminated all correction-short setups.
+        // ─── 3.5. Hard directional gates: one direction per 4h regime ───────
+        // Block shorts when 1h is bullish (was existing gate).
         if (isShort && htfBullish1h === true) {
             logger.warn(`❌ SHORT blocked: 1h is bullish — skipping ${symbol}`);
+            return;
+        }
+        // Block longs when 4h is bearish — don't buy into a downtrend.
+        if (isLong && htfBullish4h === false) {
+            logger.warn(`❌ LONG blocked: 4h is bearish — skipping ${symbol}`);
+            return;
+        }
+        // Block shorts when 4h is bullish — don't short a rising market.
+        if (isShort && htfBullish4h === true) {
+            logger.warn(`❌ SHORT blocked: 4h is bullish — skipping ${symbol}`);
             return;
         }
 
@@ -1207,6 +1226,9 @@ export class TradingEngine {
 
             // Remove from positions
             this.positions.delete(symbol);
+
+            // Prevent immediate re-entry on the same symbol after any close
+            this.reEntryCooldown.set(symbol, 2);
 
             // ─── Track consecutive losses for cooldown ───
             if (pnl < 0) {

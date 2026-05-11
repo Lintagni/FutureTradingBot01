@@ -54,8 +54,8 @@ export const config = {
     // Strategy Parameters
     strategy: {
         // EMA Settings
-        emaShort: parseInt(process.env.EMA_SHORT || '9'),
-        emaLong: parseInt(process.env.EMA_LONG || '21'),
+        emaShort: parseInt(process.env.EMA_SHORT || '20'),
+        emaLong: parseInt(process.env.EMA_LONG || '50'),
 
         // RSI Settings
         rsiPeriod: parseInt(process.env.RSI_PERIOD || '14'),
