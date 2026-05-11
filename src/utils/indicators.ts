@@ -68,10 +68,10 @@ export class IndicatorCalculator {
         const lows = candles.map((c) => c.low);
         const volumes = candles.map((c) => c.volume);
 
-        // EMA
-        const ema9Values = EMA.calculate({ period: 9, values: closes });
-        const ema21Values = EMA.calculate({ period: 21, values: closes });
-        const ema50Values = EMA.calculate({ period: 50, values: closes });
+        // EMA — fast=20, slow=50 (smoother signals, fewer whipsaws vs 9/21)
+        const ema9Values = EMA.calculate({ period: 20, values: closes });
+        const ema21Values = EMA.calculate({ period: 50, values: closes });
+        const ema50Values = ema21Values; // ema50 alias kept for continuation logic in strategy
 
         // RSI
         const rsiValues = RSI.calculate({ period: 14, values: closes });
