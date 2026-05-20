@@ -6,6 +6,7 @@ import {
     BollingerBands,
     ATR,
     ADX,
+    StochasticRSI,
 } from 'technicalindicators';
 
 export interface OHLCV {
@@ -39,6 +40,8 @@ export interface TechnicalIndicators {
     vwap?: number;
     /** EMA50 — used to detect late-trend entries and avoid chasing extended moves */
     ema50?: number;
+    /** Stochastic RSI — momentum confirmation filter (%K/%D crossover) */
+    stochRSI?: { k: number; d: number };
     /** Raw candle OHLC — used for candle body strength filter and AI features */
     high: number;
     low: number;
@@ -109,6 +112,15 @@ export class IndicatorCalculator {
             close: closes,
         });
 
+        // Stochastic RSI (rsi=14, stoch=14, k=3, d=3)
+        const stochRSIValues = StochasticRSI.calculate({
+            values: closes,
+            rsiPeriod: 14,
+            stochasticPeriod: 14,
+            kPeriod: 3,
+            dPeriod: 3,
+        });
+
         // Volume Average
         const volumeAvg = SMA.calculate({ period: 20, values: volumes });
 
@@ -143,10 +155,13 @@ export class IndicatorCalculator {
             const atrIdx = i - (len - atrValues.length);
             const adxIdx = i - (len - adxValues.length);
             const volIdx = i - (len - volumeAvg.length);
+            const stochRSIIdx = i - (len - stochRSIValues.length);
 
             if (ema9Idx < 0 || ema21Idx < 0 || rsiIdx < 0 || macdIdx < 0 || bbIdx < 0 || atrIdx < 0 || adxIdx < 0 || volIdx < 0) {
                 continue; // Not all indicators available yet
             }
+
+            const stochRSIEntry = stochRSIIdx >= 0 ? stochRSIValues[stochRSIIdx] as any : null;
 
             results.push({
                 ema9: ema9Values[ema9Idx],
@@ -160,6 +175,9 @@ export class IndicatorCalculator {
                 currentVolume: volumes[i],
                 vwap: isNaN(vwapValues[i]) ? undefined : vwapValues[i],
                 ema50: ema50Idx >= 0 ? ema50Values[ema50Idx] : undefined,
+                stochRSI: stochRSIEntry
+                    ? { k: stochRSIEntry.k ?? 50, d: stochRSIEntry.d ?? 50 }
+                    : undefined,
                 high:  candles[i].high,
                 low:   candles[i].low,
                 close: candles[i].close,
@@ -230,5 +248,49 @@ export class IndicatorCalculator {
         const avgSquareDiff =
             squareDiffs.reduce((sum, val) => sum + val, 0) / values.length;
         return Math.sqrt(avgSquareDiff);
+    }
+
+    /**
+     * Find the most recent confirmed swing low within the last maxLookback candles.
+     * A swing low is a candle whose low is strictly lower than the 'wings' candles on each side.
+     * Returns null if none found.
+     */
+    static findSwingLow(candles: OHLCV[], wings: number = 5, maxLookback: number = 40): number | null {
+        // We need wings candles on the right to confirm, so search up to len-wings-1
+        const end = candles.length - wings - 1;
+        const start = Math.max(wings, candles.length - maxLookback);
+
+        for (let i = end; i >= start; i--) {
+            const pivot = candles[i].low;
+            let valid = true;
+
+            for (let j = 1; j <= wings && valid; j++) {
+                if (candles[i - j].low <= pivot || candles[i + j].low <= pivot) valid = false;
+            }
+
+            if (valid) return pivot;
+        }
+        return null;
+    }
+
+    /**
+     * Find the most recent confirmed swing high within the last maxLookback candles.
+     * Returns null if none found.
+     */
+    static findSwingHigh(candles: OHLCV[], wings: number = 5, maxLookback: number = 40): number | null {
+        const end = candles.length - wings - 1;
+        const start = Math.max(wings, candles.length - maxLookback);
+
+        for (let i = end; i >= start; i--) {
+            const pivot = candles[i].high;
+            let valid = true;
+
+            for (let j = 1; j <= wings && valid; j++) {
+                if (candles[i - j].high >= pivot || candles[i + j].high >= pivot) valid = false;
+            }
+
+            if (valid) return pivot;
+        }
+        return null;
     }
 }

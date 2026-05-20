@@ -75,15 +75,15 @@ export const config = {
         volumeMultiplier: 1.5, // Signal requires 1.5x average volume
 
         // ML Confidence Threshold
-        mlConfidenceThreshold: 0.55, // Raised from 0.45 — stricter filter to reduce bad trades
+        mlConfidenceThreshold: 0.65, // Raised from 0.55 — 32.6% win rate requires stricter gate
 
         // Adaptive Learning Thresholds
-        minConfidence: 0.40,       // Raised from 0.30
-        defensiveConfidence: 0.50, // Raised from 0.40
+        minConfidence: 0.55,       // Raised from 0.40
+        defensiveConfidence: 0.60, // Raised from 0.50
 
         // ATR Settings for Dynamic SL/TP
         atrMultiplierSL: 2.0,
-        atrMultiplierTP: 4.0, // Raised from 3.0 — R:R now 1:2, breakeven drops to 33.3%
+        atrMultiplierTP: 5.0, // Raised from 4.0 — R:R now 1:2.5, breakeven drops to 28.6%
 
         // Trailing Stop Settings
         trailingStopActivation: 1.5, // Activate trailing stop at +1.5% profit

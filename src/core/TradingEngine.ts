@@ -2,7 +2,7 @@ import { BaseExchange } from '../exchanges/BaseExchange';
 import { BaseStrategy, TradeSignal } from '../strategies/BaseStrategy';
 import { riskManager, RiskManager } from '../risk/RiskManager';
 import { tradeRepository } from '../database/TradeRepository';
-import { IndicatorCalculator } from '../utils/indicators';
+import { IndicatorCalculator, OHLCV } from '../utils/indicators';
 import { logger, tradeLogger } from '../utils/logger';
 import { notifier } from '../utils/notifier';
 import { webServer } from '../utils/WebServer';
@@ -92,6 +92,11 @@ export class TradingEngine {
 
     // ─── Higher-Timeframe trend cache (15-min TTL per symbol) ────────────────
     private htfCache: Map<string, { bullish1h: boolean | null; bullish4h: boolean | null; cachedAt: number }> = new Map();
+
+    // ─── Adaptive timeframe cache (30-min TTL per symbol) ────────────────────
+    private tfCache: Map<string, { timeframe: string; selectedAt: number }> = new Map();
+    private readonly TF_CANDIDATES = ['15m', '30m', '1h'] as const;
+    private readonly TF_ADX_THRESHOLDS: Record<string, number> = { '15m': 25, '30m': 22 };
 
     constructor(exchange: BaseExchange, strategy: BaseStrategy) {
         this.exchange = exchange;
@@ -332,6 +337,67 @@ export class TradingEngine {
     }
 
     /**
+     * Dynamically select the best timeframe for a symbol based on ADX trend strength.
+     * Tries 15m → 30m → 1h; uses the fastest timeframe where ADX is strong enough.
+     * Caches the result for 30 minutes to avoid extra API calls every cycle.
+     */
+    private async selectTimeframe(symbol: string): Promise<{ timeframe: string; candles: OHLCV[] }> {
+        const TF_CACHE_TTL = 30 * 60 * 1000;
+        const cached = this.tfCache.get(symbol);
+
+        if (cached && Date.now() - cached.selectedAt < TF_CACHE_TTL) {
+            const candles = await withRetry(
+                () => this.exchange.fetchOHLCV(symbol, cached.timeframe, 100),
+                `Fetch OHLCV ${symbol} ${cached.timeframe}`
+            );
+            return { timeframe: cached.timeframe, candles };
+        }
+
+        // Evaluate timeframes from fastest to slowest
+        for (const tf of this.TF_CANDIDATES) {
+            const candles = await withRetry(
+                () => this.exchange.fetchOHLCV(symbol, tf, 100),
+                `Fetch OHLCV ${symbol} ${tf}`
+            );
+
+            if (candles.length < 50) continue;
+
+            const indicators = IndicatorCalculator.calculate(candles);
+            const adxValue = indicators
+                ? (typeof indicators.adx === 'object'
+                    ? (indicators.adx as any).adx || 0
+                    : indicators.adx || 0)
+                : 0;
+
+            const threshold = this.TF_ADX_THRESHOLDS[tf];
+
+            if (threshold === undefined || adxValue >= threshold) {
+                // 1h has no threshold (always accepted as final fallback)
+                const reason = threshold === undefined
+                    ? 'fallback (1h)'
+                    : `ADX ${adxValue.toFixed(1)} ≥ ${threshold}`;
+                const prevTf = cached?.timeframe;
+                if (prevTf !== tf) {
+                    logger.info(`🕐 [TF] ${symbol}: selected ${tf} (${reason})${prevTf ? ` ← was ${prevTf}` : ''}`);
+                }
+                this.tfCache.set(symbol, { timeframe: tf, selectedAt: Date.now() });
+                return { timeframe: tf, candles };
+            }
+
+            logger.info(`🕐 [TF] ${symbol}: ${tf} ADX ${adxValue.toFixed(1)} < ${threshold} — escalating to slower TF`);
+            await new Promise(r => setTimeout(r, 250)); // rate-limit guard between TF fetches
+        }
+
+        // Should never reach here (1h always accepted above), but guard anyway
+        const candles = await withRetry(
+            () => this.exchange.fetchOHLCV(symbol, '1h', 100),
+            `Fetch OHLCV ${symbol} 1h (fallback)`
+        );
+        this.tfCache.set(symbol, { timeframe: '1h', selectedAt: Date.now() });
+        return { timeframe: '1h', candles };
+    }
+
+    /**
      * Fetch 1h and 4h EMA trends for a symbol (cached 15 min).
      * Returns null booleans if data is unavailable — callers treat null as neutral.
      */
@@ -377,11 +443,9 @@ export class TradingEngine {
             // Use a Promise.race to ensure we don't hang forever on a single symbol
             await Promise.race([
                 (async () => {
-                    // Fetch market data with retry logic
-                    const candles = await withRetry(
-                        () => this.exchange.fetchOHLCV(symbol, config.timeframe, 100),
-                        `Fetch OHLCV for ${symbol}`
-                    );
+                    // Adaptively select timeframe: 15m if trending (ADX≥25), 30m if moderate,
+                    // 1h if choppy — re-evaluated every 30 min per symbol.
+                    const { timeframe: activeTimeframe, candles } = await this.selectTimeframe(symbol);
 
                     if (candles.length < 50) {
                         logger.warn(`Insufficient candles for ${symbol}`);
@@ -393,7 +457,7 @@ export class TradingEngine {
                     await tradeRepository.saveMarketData({
                         exchange: this.exchange.getName(),
                         symbol,
-                        timeframe: config.timeframe,
+                        timeframe: activeTimeframe,
                         timestamp: new Date(latestCandle.timestamp),
                         open: latestCandle.open,
                         high: latestCandle.high,
@@ -450,7 +514,7 @@ export class TradingEngine {
                         await this.managePosition(symbol, position, signal);
                     } else {
                         // Look for entry opportunity
-                        await this.lookForEntry(symbol, signal, htfBullish1h, htfBullish4h);
+                        await this.lookForEntry(symbol, signal, htfBullish1h, htfBullish4h, candles);
                     }
                     completed = true;
                 })(),
@@ -489,6 +553,7 @@ export class TradingEngine {
         signal: TradeSignal,
         htfBullish1h: boolean | null = null,
         htfBullish4h: boolean | null = null,
+        candles: OHLCV[] = [],
     ): Promise<void> {
         // Only act on directional signals, not hold
         if (signal.signal === 'hold') return;
@@ -650,13 +715,12 @@ export class TradingEngine {
 
         // ─── 4. Trade Quality Score ───────────────────────────────────────────
         // Composite 0–100 score across HTF alignment, volume, MACD, funding, RSI momentum.
-        // Minimum 40/100 to enter (lowered from 50; RSI component added to compensate).
         const quality = this.computeQualityScore(
             isLong, htfBullish1h, htfBullish4h, fundingRateValue, signal.indicators
         );
         logger.info(`📊 Quality Score: ${quality.score}/100 | ${quality.breakdown}`);
-        if (quality.score < 40) {
-            logger.warn(`❌ Quality score ${quality.score}/100 < 40 — skipping ${dirLabel} for ${symbol}`);
+        if (quality.score < 50) {
+            logger.warn(`❌ Quality score ${quality.score}/100 < 50 — skipping ${dirLabel} for ${symbol}`);
             return;
         }
 
@@ -729,21 +793,61 @@ export class TradingEngine {
                 logger.warn(`Failed to check min exchange amount for ${symbol}: ${e}`);
             }
 
-            // ATR DYNAMIC SL/TP — direction-aware
-            if (signal.indicators.atr) {
+            // ─── SL/TP: Swing-level first, ATR fallback ───────────────────────
+            // Swing SL places stop at a technically meaningful level (below last swing
+            // low for longs, above last swing high for shorts) rather than a fixed ATR
+            // multiple. If no usable swing level exists, fall back to ATR-based.
+            const RR_RATIO = (config.strategy.atrMultiplierTP || 5.0) / (config.strategy.atrMultiplierSL || 2.0);
+            const SWING_BUFFER = 0.002; // 0.2% padding beyond swing level
+            const SWING_SL_MIN = 0.008; // ignore swing SL tighter than 0.8% (noise stops you out)
+            const SWING_SL_MAX = 0.045; // ignore swing SL wider than 4.5% (R:R becomes unfavourable)
+            let swingUsed = false;
+
+            if (candles.length >= 15) {
+                if (isLong) {
+                    const swingLow = IndicatorCalculator.findSwingLow(candles);
+                    if (swingLow !== null) {
+                        const swingSL = swingLow * (1 - SWING_BUFFER);
+                        const slPct = (signal.price - swingSL) / signal.price;
+                        if (slPct >= SWING_SL_MIN && slPct <= SWING_SL_MAX) {
+                            positionSize.stopLoss  = swingSL;
+                            positionSize.takeProfit = signal.price + (signal.price - swingSL) * RR_RATIO;
+                            logger.info(`📐 Swing SL LONG: low=$${swingLow.toFixed(4)}, SL=$${swingSL.toFixed(4)} (${(slPct*100).toFixed(2)}%), TP=$${positionSize.takeProfit.toFixed(4)} R:R 1:${RR_RATIO.toFixed(1)}`);
+                            swingUsed = true;
+                        } else {
+                            logger.info(`📐 Swing SL LONG skipped: ${(slPct*100).toFixed(2)}% outside [${SWING_SL_MIN*100}%–${SWING_SL_MAX*100}%] → using ATR`);
+                        }
+                    }
+                } else {
+                    const swingHigh = IndicatorCalculator.findSwingHigh(candles);
+                    if (swingHigh !== null) {
+                        const swingSL = swingHigh * (1 + SWING_BUFFER);
+                        const slPct = (swingSL - signal.price) / signal.price;
+                        if (slPct >= SWING_SL_MIN && slPct <= SWING_SL_MAX) {
+                            positionSize.stopLoss  = swingSL;
+                            positionSize.takeProfit = signal.price - (swingSL - signal.price) * RR_RATIO;
+                            logger.info(`📐 Swing SL SHORT: high=$${swingHigh.toFixed(4)}, SL=$${swingSL.toFixed(4)} (${(slPct*100).toFixed(2)}%), TP=$${positionSize.takeProfit.toFixed(4)} R:R 1:${RR_RATIO.toFixed(1)}`);
+                            swingUsed = true;
+                        } else {
+                            logger.info(`📐 Swing SL SHORT skipped: ${(slPct*100).toFixed(2)}% outside [${SWING_SL_MIN*100}%–${SWING_SL_MAX*100}%] → using ATR`);
+                        }
+                    }
+                }
+            }
+
+            if (!swingUsed && signal.indicators.atr) {
                 const atr = signal.indicators.atr;
                 const slDist = atr * (config.strategy.atrMultiplierSL || 2.0);
-                const tpDist = atr * (config.strategy.atrMultiplierTP || 3.0);
+                const tpDist = atr * (config.strategy.atrMultiplierTP || 5.0);
 
                 if (isLong) {
-                    positionSize.stopLoss = signal.price - slDist;    // SL below entry
-                    positionSize.takeProfit = signal.price + tpDist;  // TP above entry
+                    positionSize.stopLoss  = signal.price - slDist;
+                    positionSize.takeProfit = signal.price + tpDist;
                 } else {
-                    positionSize.stopLoss = signal.price + slDist;    // SL above entry (SHORT loses if price rises)
-                    positionSize.takeProfit = signal.price - tpDist;  // TP below entry (SHORT profits if price falls)
+                    positionSize.stopLoss  = signal.price + slDist;
+                    positionSize.takeProfit = signal.price - tpDist;
                 }
-
-                logger.info(`📏 ATR SL/TP for ${dirLabel}: SL=$${positionSize.stopLoss.toFixed(2)}, TP=$${positionSize.takeProfit.toFixed(2)}`);
+                logger.info(`📏 ATR SL/TP ${dirLabel}: SL=$${positionSize.stopLoss.toFixed(4)}, TP=$${positionSize.takeProfit.toFixed(4)}`);
             }
 
             try {

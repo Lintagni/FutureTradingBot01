@@ -24,6 +24,15 @@ export class TrendFollowingStrategy extends BaseStrategy {
         let signal: 'buy' | 'sell' | 'hold' = 'hold';
         let reason = '';
 
+        // ─── STOCHASTIC RSI ───
+        const stoch = indicators.stochRSI;
+        const prevStoch = prevIndicators.stochRSI;
+        // Crossover: %K just crossed above/below %D
+        const stochBullishCross = stoch && prevStoch && prevStoch.k < prevStoch.d && stoch.k > stoch.d;
+        const stochBearishCross = stoch && prevStoch && prevStoch.k > prevStoch.d && stoch.k < stoch.d;
+        const stochOverbought = stoch && stoch.k > 80;
+        const stochOversold  = stoch && stoch.k < 20;
+
         // ─── ADX TREND FILTER ───
         // ADX < 20 = ranging/choppy market → EMA crossovers will whipsaw
         const adxValue = typeof indicators.adx === 'object'
@@ -104,6 +113,15 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 reason += ', above VWAP';
             }
 
+            // Stochastic RSI momentum confirmation
+            if (stochBullishCross && !stochOverbought) {
+                confidence += 0.10;
+                reason += `, StochRSI↑ (K:${stoch!.k.toFixed(0)})`;
+            } else if (stochOverbought) {
+                confidence -= 0.10;
+                reason += `, StochRSI overbought (${stoch!.k.toFixed(0)})`;
+            }
+
         }
         // Bearish conditions
         else if (bearishCrossover) {
@@ -156,6 +174,16 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 confidence += 0.05;
                 reason += ', below VWAP';
             }
+
+            // Stochastic RSI momentum confirmation
+            if (stochBearishCross && !stochOversold) {
+                confidence += 0.10;
+                reason += `, StochRSI↓ (K:${stoch!.k.toFixed(0)})`;
+            } else if (stochOversold) {
+                confidence -= 0.10;
+                reason += `, StochRSI oversold (${stoch!.k.toFixed(0)})`;
+            }
+
         }
         // Continuation & Extreme conditions
         else {
@@ -163,18 +191,18 @@ export class TrendFollowingStrategy extends BaseStrategy {
 
             // Strong uptrend continuation — only enter if not over-extended above EMA50
             if (
-                adxValue > 25 &&
+                adxValue > 30 &&
                 indicators.ema9 > indicators.ema21 &&
                 currentPrice > indicators.ema9 &&
-                indicators.rsi > 50 &&
+                indicators.rsi > 52 &&
                 indicators.rsi < config.strategy.rsiOverbought &&
                 indicators.macd.histogram > 0 &&
-                currentVolume > indicators.volumeAvg * 1.1 &&
-                // Price must be within 2% above EMA50 — avoids chasing late-trend extensions
-                (!ema50 || currentPrice < ema50 * 1.02)
+                currentVolume > indicators.volumeAvg * 1.3 &&
+                // Price must be within 1.5% above EMA50 — avoids chasing late-trend extensions
+                (!ema50 || currentPrice < ema50 * 1.015)
             ) {
                 signal = 'buy';
-                confidence = 0.68;
+                confidence = 0.70;
                 reason = 'Uptrend continuation (ADX+MACD confirmed)';
                 if (ema50 && currentPrice >= ema50 && currentPrice < ema50 * 1.005) {
                     confidence += 0.07;

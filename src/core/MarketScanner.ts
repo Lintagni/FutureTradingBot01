@@ -25,10 +25,12 @@ function estimateMinOrderCost(price: number): number {
     return 1;                        // Sub-dollar (DOGE, XRP, etc.)
 }
 
-// Stablecoins and leveraged tokens to always exclude
+// Stablecoins, leveraged tokens, and commodity-backed tokens to always exclude
 const EXCLUDED_BASES = new Set([
     'USDC', 'BUSD', 'DAI', 'TUSD', 'USDP', 'FDUSD', 'PYUSD', 'USDD',
     'FRAX', 'LUSD', 'GUSD', 'SUSD', 'EURC', 'EURT', 'AEUR',
+    // Commodity/precious metal tokens — behave differently from crypto, poor fit for this strategy
+    'XAUT', 'PAXG', 'XAGF', 'WBTCE',
 ]);
 
 const EXCLUDED_PATTERNS = [
