@@ -696,20 +696,22 @@ export class TradingEngine {
             return;
         }
 
-        // ─── 3.5. Hard directional gates: one direction per 4h regime ───────
-        // Block shorts when 1h is bullish (was existing gate).
+        // ─── 3.5. Hard directional gates ─────────────────────────────────────
+        // Block shorts when 1h is bullish — strong near-term uptrend.
         if (isShort && htfBullish1h === true) {
             logger.warn(`❌ SHORT blocked: 1h is bullish — skipping ${symbol}`);
-            return;
-        }
-        // Block longs when 4h is bearish — don't buy into a downtrend.
-        if (isLong && htfBullish4h === false) {
-            logger.warn(`❌ LONG blocked: 4h is bearish — skipping ${symbol}`);
             return;
         }
         // Block shorts when 4h is bullish — don't short a rising market.
         if (isShort && htfBullish4h === true) {
             logger.warn(`❌ SHORT blocked: 4h is bullish — skipping ${symbol}`);
+            return;
+        }
+        // LONG against 4h bearish: confidence already penalized -0.10 by HTF adj above.
+        // Only block if the signal is weak (adjusted confidence still low after penalty).
+        // This allows high-conviction counter-trend longs (e.g. oversold bounce) to pass.
+        if (isLong && htfBullish4h === false && adjustedConfidence < regimeThreshold + 0.05) {
+            logger.warn(`❌ LONG blocked: 4h bearish and adjusted conf ${(adjustedConfidence * 100).toFixed(1)}% not strong enough — skipping ${symbol}`);
             return;
         }
 
@@ -719,8 +721,8 @@ export class TradingEngine {
             isLong, htfBullish1h, htfBullish4h, fundingRateValue, signal.indicators
         );
         logger.info(`📊 Quality Score: ${quality.score}/100 | ${quality.breakdown}`);
-        if (quality.score < 50) {
-            logger.warn(`❌ Quality score ${quality.score}/100 < 50 — skipping ${dirLabel} for ${symbol}`);
+        if (quality.score < 40) {
+            logger.warn(`❌ Quality score ${quality.score}/100 < 40 — skipping ${dirLabel} for ${symbol}`);
             return;
         }
 

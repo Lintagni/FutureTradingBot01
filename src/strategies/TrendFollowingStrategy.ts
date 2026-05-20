@@ -38,7 +38,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
         const adxValue = typeof indicators.adx === 'object'
             ? (indicators.adx as any).adx || 0
             : indicators.adx || 0;
-        const isTrending = adxValue > 30; // ADX 30+ = confirmed trend (25 still allowed too many choppy entries)
+        const isTrending = adxValue > 25; // ADX 25+ = confirmed trend
 
         // Check for bullish signals
         const bullishCrossover = IndicatorCalculator.isBullishCrossover(
@@ -189,30 +189,42 @@ export class TrendFollowingStrategy extends BaseStrategy {
         else {
             const ema50 = (indicators as any).ema50 as number | undefined;
 
-            // Strong uptrend continuation — only enter if not over-extended above EMA50
+            // Strong uptrend continuation — allow entry up to 5% above EMA50
             if (
-                adxValue > 30 &&
+                adxValue > 25 &&
                 indicators.ema9 > indicators.ema21 &&
                 currentPrice > indicators.ema9 &&
                 indicators.rsi > 52 &&
                 indicators.rsi < config.strategy.rsiOverbought &&
                 indicators.macd.histogram > 0 &&
-                currentVolume > indicators.volumeAvg * 1.3 &&
-                // Price must be within 1.5% above EMA50 — avoids chasing late-trend extensions
-                (!ema50 || currentPrice < ema50 * 1.015)
+                currentVolume > indicators.volumeAvg * 1.2 &&
+                (!ema50 || currentPrice < ema50 * 1.05)
             ) {
                 signal = 'buy';
-                confidence = 0.70;
+                confidence = 0.68;
                 reason = 'Uptrend continuation (ADX+MACD confirmed)';
                 if (ema50 && currentPrice >= ema50 && currentPrice < ema50 * 1.005) {
                     confidence += 0.07;
                     reason += ', fresh EMA50 breakout';
-                } else if (ema50 && currentPrice >= ema50 * 1.015) {
+                } else if (ema50 && currentPrice >= ema50 * 1.03) {
                     confidence -= 0.05;
-                    reason += ', slightly extended above EMA50';
+                    reason += ', extended above EMA50';
                 }
             }
-            // Strong downtrend continuation
+            // EMA20 pullback in uptrend — price dips to EMA20 (fast EMA) support zone
+            else if (
+                adxValue > 20 &&
+                indicators.ema9 > indicators.ema21 &&
+                currentPrice <= indicators.ema9 * 1.005 &&
+                currentPrice >= indicators.ema9 * 0.99 &&
+                indicators.rsi > 40 && indicators.rsi < 60 &&
+                indicators.macd.MACD > indicators.macd.signal
+            ) {
+                signal = 'buy';
+                confidence = 0.62;
+                reason = 'Pullback to EMA20 in uptrend';
+            }
+            // Strong downtrend continuation — allow up to 5% below EMA50
             else if (
                 isTrending &&
                 indicators.ema9 < indicators.ema21 &&
@@ -220,8 +232,7 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 indicators.rsi < 50 &&
                 indicators.macd.MACD < indicators.macd.signal &&
                 indicators.macd.histogram < 0 &&
-                // Price must be within 2% below EMA50 — avoids shorting already-extended drops
-                (!ema50 || currentPrice > ema50 * 0.98)
+                (!ema50 || currentPrice > ema50 * 0.95)
             ) {
                 signal = 'sell';
                 confidence = 0.75;
