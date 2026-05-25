@@ -47,8 +47,8 @@ export const config = {
     capitalTiers: [
         { name: 'micro',  maxBalance: 50,       positionPct: 0.45, leverage: 2, minScannerPrice: 0.001 },
         { name: 'small',  maxBalance: 200,       positionPct: 0.20, leverage: 2, minScannerPrice: 0.5 },
-        { name: 'medium', maxBalance: 1000,      positionPct: 0.08, leverage: 3, minScannerPrice: 1.0 },
-        { name: 'large',  maxBalance: Infinity,  positionPct: 0.03, leverage: 3, minScannerPrice: 1.0 },
+        { name: 'medium', maxBalance: 1000,      positionPct: 0.08, leverage: 2, minScannerPrice: 1.0 },
+        { name: 'large',  maxBalance: Infinity,  positionPct: 0.03, leverage: 2, minScannerPrice: 1.0 },
     ],
 
     // Strategy Parameters
@@ -83,12 +83,27 @@ export const config = {
 
         // ATR Settings for Dynamic SL/TP
         atrMultiplierSL: 2.0,
-        atrMultiplierTP: 5.0, // Raised from 4.0 — R:R now 1:2.5, breakeven drops to 28.6%
+        atrMultiplierTP: 5.0,          // R:R 1:2.5, breakeven at 28.6%
+        partialTpAtrMultiplier: 3.0,   // Partial exit at ATR×3 (halfway to full TP)
 
         // Trailing Stop Settings
-        trailingStopActivation: 1.5, // Activate trailing stop at +1.5% profit
-        trailingStopDistance: 1.0,    // Trail 1% behind highest price
-        breakEvenActivation: 1.0,    // Move SL to breakeven at +1% profit
+        trailingStopActivation: 1.0,  // Activate trailing stop at +1.0% profit (was 1.5)
+        trailingStopDistance: 0.7,    // Trail 0.7% behind highest price (was 1.0)
+        breakEvenActivation: 1.0,     // Move SL to breakeven at +1% profit
+
+        // Staged ROI table — time-based take-profit (exit if profit% >= threshold at that age)
+        // Format: [minutesOpen, minProfitPct]. Checked in order — first match exits.
+        roiTable: [
+            [0,   8.0],   // Spike — take 8%+ immediately
+            [30,  5.0],   // Good profit after 30 min
+            [120, 3.0],   // Decent profit after 2 hours
+            [480, 1.0],   // Just get out after 8 hours
+        ] as [number, number][],
+
+        // Session filter — skip new entries during low-liquidity hours (UTC)
+        sessionFilterEnabled: true,
+        sessionDeadHoursUTC: { start: 0, end: 6 }, // 00:00–06:00 UTC (Asian session)
+        sessionDeadHoursAdxException: 35,           // Override if ADX very strong
 
         // Smart Profit Exit
         smartTakeProfitMin: 1.0,      // % minimum profit to consider early exit

@@ -38,8 +38,10 @@ export interface TechnicalIndicators {
     currentVolume: number;
     /** Rolling 50-candle VWAP (Volume-Weighted Average Price) */
     vwap?: number;
-    /** EMA50 — used to detect late-trend entries and avoid chasing extended moves */
+    /** EMA50 — same as ema21 (50-period), kept for compatibility */
     ema50?: number;
+    /** EMA200 — master trend filter. Only long above, only short below. Optional (needs 200+ candles). */
+    ema200?: number;
     /** Stochastic RSI — momentum confirmation filter (%K/%D crossover) */
     stochRSI?: { k: number; d: number };
     /** Raw candle OHLC — used for candle body strength filter and AI features */
@@ -71,10 +73,13 @@ export class IndicatorCalculator {
         const lows = candles.map((c) => c.low);
         const volumes = candles.map((c) => c.volume);
 
-        // EMA — fast=20, slow=50 (smoother signals, fewer whipsaws vs 9/21)
-        const ema9Values = EMA.calculate({ period: 20, values: closes });
+        // EMA — fast=20 (ema9 slot), slow=50 (ema21 slot), master=200 (ema200)
+        const ema9Values  = EMA.calculate({ period: 20, values: closes });
         const ema21Values = EMA.calculate({ period: 50, values: closes });
-        const ema50Values = ema21Values; // ema50 alias kept for continuation logic in strategy
+        const ema50Values = ema21Values; // ema50 kept as alias for ema21 (both 50-period)
+        const ema200Values = closes.length >= 200
+            ? EMA.calculate({ period: 200, values: closes })
+            : [];
 
         // RSI
         const rsiValues = RSI.calculate({ period: 14, values: closes });
@@ -146,15 +151,16 @@ export class IndicatorCalculator {
 
         for (let i = 0; i < len; i++) {
             // Calculate local indices for each indicator
-            const ema9Idx = i - (len - ema9Values.length);
-            const ema21Idx = i - (len - ema21Values.length);
-            const ema50Idx = i - (len - ema50Values.length);
-            const rsiIdx = i - (len - rsiValues.length);
-            const macdIdx = i - (len - macdValues.length);
-            const bbIdx = i - (len - bbValues.length);
-            const atrIdx = i - (len - atrValues.length);
-            const adxIdx = i - (len - adxValues.length);
-            const volIdx = i - (len - volumeAvg.length);
+            const ema9Idx    = i - (len - ema9Values.length);
+            const ema21Idx   = i - (len - ema21Values.length);
+            const ema50Idx   = i - (len - ema50Values.length);
+            const ema200Idx  = ema200Values.length > 0 ? i - (len - ema200Values.length) : -1;
+            const rsiIdx     = i - (len - rsiValues.length);
+            const macdIdx    = i - (len - macdValues.length);
+            const bbIdx      = i - (len - bbValues.length);
+            const atrIdx     = i - (len - atrValues.length);
+            const adxIdx     = i - (len - adxValues.length);
+            const volIdx     = i - (len - volumeAvg.length);
             const stochRSIIdx = i - (len - stochRSIValues.length);
 
             if (ema9Idx < 0 || ema21Idx < 0 || rsiIdx < 0 || macdIdx < 0 || bbIdx < 0 || atrIdx < 0 || adxIdx < 0 || volIdx < 0) {
@@ -175,6 +181,7 @@ export class IndicatorCalculator {
                 currentVolume: volumes[i],
                 vwap: isNaN(vwapValues[i]) ? undefined : vwapValues[i],
                 ema50: ema50Idx >= 0 ? ema50Values[ema50Idx] : undefined,
+                ema200: ema200Idx >= 0 ? ema200Values[ema200Idx] : undefined,
                 stochRSI: stochRSIEntry
                     ? { k: stochRSIEntry.k ?? 50, d: stochRSIEntry.d ?? 50 }
                     : undefined,

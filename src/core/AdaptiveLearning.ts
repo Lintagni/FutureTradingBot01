@@ -183,14 +183,16 @@ export class AdaptiveLearning {
 export const aiLearning = AdaptiveLearning.getInstance();
 
 /**
- * Extract features for AI model
- * [RSI, MACD_Hist, Price/EMA21, Price/EMA9, Volume/AvgVolume, BandWidth, ADX, isLong]
+ * Extract features for AI model (11 features)
+ * [RSI, MACD_Hist, Price/EMA21, Price/EMA9, Volume/AvgVolume, BandWidth,
+ *  ADX, bodyStrength, isLong, adxDirection, price/EMA200]
  */
 export function extractFeatures(
     indicators: any,
     currentPrice: number,
     currentVolume: number,
-    isLong: boolean = true
+    isLong: boolean = true,
+    prevAdx?: number,    // previous cycle ADX — used for direction feature
 ): number[] {
     const safeDiv = (n: number, d: number) => (d === 0 || !d ? 0 : n / d);
 
@@ -202,6 +204,14 @@ export function extractFeatures(
     const range = high - low;
     const bodyStrength = range > 0 ? (currentPrice - low) / range : 0.5;
 
+    // ADX direction: 1.0 if trend is strengthening, 0.0 if weakening/unknown
+    const prevAdxNum = prevAdx ?? adxNum;
+    const adxDirection = adxNum > prevAdxNum ? 1.0 : 0.0;
+
+    // Price vs EMA200: ratio of price to major trend EMA. 1.0 if unavailable (neutral).
+    const ema200 = indicators.ema200 ?? null;
+    const priceVsEma200 = ema200 ? safeDiv(currentPrice, ema200) : 1.0;
+
     const rawFeatures = [
         indicators.rsi || 50,
         indicators.macd?.histogram || 0,
@@ -210,8 +220,10 @@ export function extractFeatures(
         safeDiv(currentVolume, indicators.volumeAvg),
         safeDiv((indicators.bb?.upper - indicators.bb?.lower), indicators.bb?.middle),
         adxNum,
-        bodyStrength,      // feature #7 — matches training
+        bodyStrength,
         isLong ? 1.0 : 0.0,
+        adxDirection,        // feature #10 — ADX rising (1) or falling (0)
+        priceVsEma200,       // feature #11 — price relative to major trend
     ];
 
     return rawFeatures.map(v => (Number.isFinite(v) ? v : 0));

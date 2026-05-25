@@ -93,6 +93,9 @@ export class TradingEngine {
     // ─── Higher-Timeframe trend cache (15-min TTL per symbol) ────────────────
     private htfCache: Map<string, { bullish1h: boolean | null; bullish4h: boolean | null; cachedAt: number }> = new Map();
 
+    // ─── BTC macro trend cache (10-min TTL) ──────────────────────────────────
+    private btcMacroCache: { bullish1h: boolean | null; cachedAt: number } = { bullish1h: null, cachedAt: 0 };
+
     // ─── Adaptive timeframe cache (30-min TTL per symbol) ────────────────────
     private tfCache: Map<string, { timeframe: string; selectedAt: number }> = new Map();
     private readonly TF_CANDIDATES = ['15m', '30m', '1h'] as const;
@@ -347,7 +350,7 @@ export class TradingEngine {
 
         if (cached && Date.now() - cached.selectedAt < TF_CACHE_TTL) {
             const candles = await withRetry(
-                () => this.exchange.fetchOHLCV(symbol, cached.timeframe, 100),
+                () => this.exchange.fetchOHLCV(symbol, cached.timeframe, 200),
                 `Fetch OHLCV ${symbol} ${cached.timeframe}`
             );
             return { timeframe: cached.timeframe, candles };
@@ -356,7 +359,7 @@ export class TradingEngine {
         // Evaluate timeframes from fastest to slowest
         for (const tf of this.TF_CANDIDATES) {
             const candles = await withRetry(
-                () => this.exchange.fetchOHLCV(symbol, tf, 100),
+                () => this.exchange.fetchOHLCV(symbol, tf, 200),
                 `Fetch OHLCV ${symbol} ${tf}`
             );
 
@@ -420,6 +423,25 @@ export class TradingEngine {
         } catch (_) {}
         this.htfCache.set(symbol, { bullish1h, bullish4h, cachedAt: Date.now() });
         return { bullish1h, bullish4h };
+    }
+
+    /**
+     * Fetch BTC 1h macro trend (cached 10 min). Returns null if unavailable.
+     * Used to penalise longs when the market-wide trend is bearish.
+     */
+    private async fetchBtcMacroTrend(): Promise<boolean | null> {
+        const TTL = 10 * 60 * 1000;
+        if (Date.now() - this.btcMacroCache.cachedAt < TTL) return this.btcMacroCache.bullish1h;
+        try {
+            const btcSymbol = 'BTC/USDT:USDT';
+            const candles = await this.exchange.fetchOHLCV(btcSymbol, '1h', 60);
+            const ind = candles.length >= 30 ? IndicatorCalculator.calculate(candles) : null;
+            const bullish = ind ? ind.ema9 > ind.ema21 : null;
+            this.btcMacroCache = { bullish1h: bullish, cachedAt: Date.now() };
+            return bullish;
+        } catch (_) {
+            return null;
+        }
     }
 
     private async processSymbol(symbol: string): Promise<void> {
@@ -622,6 +644,22 @@ export class TradingEngine {
         } else if (aiScore > 0.75) {
             aiSizeMultiplier = 1.2;
             logger.info(`🚀 AI highly confident (${(aiScore * 100).toFixed(1)}%) — boosting size to 120%`);
+        }
+
+        // ─── 0.5. BTC Macro Filter ────────────────────────────────────────────
+        // When the broader market (BTC) is in a 1h downtrend, penalise longs on
+        // all pairs. Skip for BTC itself to avoid circular logic.
+        if (!symbol.startsWith('BTC')) {
+            const btcBullish = await this.fetchBtcMacroTrend();
+            if (btcBullish === false && isLong) {
+                // BTC trending down — reduce long confidence by 0.08 (not a hard block,
+                // allows strong counter-trend setups to still pass HTF confluence check)
+                signal = { ...signal, confidence: Math.max(0, signal.confidence - 0.08) };
+                logger.info(`📉 BTC macro bearish — LONG confidence reduced by 8% for ${symbol}`);
+            } else if (btcBullish === true && isShort) {
+                signal = { ...signal, confidence: Math.max(0, signal.confidence - 0.08) };
+                logger.info(`📈 BTC macro bullish — SHORT confidence reduced by 8% for ${symbol}`);
+            }
         }
 
         // ─── 1. Funding Rate Filter ────────────────────────────────────────────
@@ -975,11 +1013,11 @@ export class TradingEngine {
             ? ((position.entryPrice - currentPrice) / position.entryPrice) * 100
             : ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
 
-        // ─── 1.5. Partial Take-Profit: close 50% at ATR×SL multiplier distance ───
-        // Halfway to full TP (ATR×2 of ATR×4 full TP) — locks partial profit and moves SL to breakeven.
+        // ─── 1.5. Partial Take-Profit: close 50% at ATR×3 (halfway to full TP) ───
+        // Triggers at a meaningful profit distance above the SL zone, not at the same level.
         if (!position.partialExitDone && (signal.indicators as any)?.atr) {
             const atr = (signal.indicators as any).atr as number;
-            const partialTriggerDist = atr * (config.strategy.atrMultiplierSL || 2.0);
+            const partialTriggerDist = atr * ((config.strategy as any).partialTpAtrMultiplier || 3.0);
             const profitDist = isShort
                 ? position.entryPrice - currentPrice
                 : currentPrice - position.entryPrice;
@@ -1004,6 +1042,20 @@ export class TradingEngine {
                 if (position.stopLoss > breakEvenSL) {
                     logger.info(`📈 [${symbol}][${dirLabel}] Moving SL to breakeven: $${position.stopLoss.toFixed(2)} → $${breakEvenSL.toFixed(2)} (profit: +${profitPct.toFixed(2)}%)`);
                     position.stopLoss = breakEvenSL;
+                }
+            }
+        }
+
+        // ─── 2.5. Staged ROI table — time-based profit targets ───────────────
+        // Exit the full position if profit% exceeds the threshold for how long the trade has been open.
+        const roiTable = (config.strategy as any).roiTable as [number, number][] | undefined;
+        if (roiTable && roiTable.length > 0) {
+            const minutesOpen = (Date.now() - position.openedAt) / 60000;
+            for (const [minAge, minProfitPct] of roiTable) {
+                if (minutesOpen >= minAge && profitPct >= minProfitPct) {
+                    logger.info(`🎯 [${symbol}][${dirLabel}] ROI table hit: +${profitPct.toFixed(2)}% >= ${minProfitPct}% at ${minutesOpen.toFixed(0)} min — closing`);
+                    await this.closePosition(symbol, position, currentPrice, `ROI target (+${minProfitPct}% at ${minAge}min)`);
+                    return;
                 }
             }
         }

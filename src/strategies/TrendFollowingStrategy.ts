@@ -12,6 +12,21 @@ export class TrendFollowingStrategy extends BaseStrategy {
         const currentPrice = candles[candles.length - 1].close;
         const currentVolume = candles[candles.length - 1].volume;
 
+        // ─── SESSION FILTER ───────────────────────────────────────────────────
+        // Skip new entry signals during Asian low-liquidity hours (00:00–06:00 UTC)
+        // unless the trend is exceptionally strong (ADX > sessionDeadHoursAdxException).
+        if ((config.strategy as any).sessionFilterEnabled) {
+            const utcHour = new Date().getUTCHours();
+            const { start, end } = (config.strategy as any).sessionDeadHoursUTC;
+            const adxVal = typeof indicators.adx === 'object'
+                ? (indicators.adx as any).adx || 0 : indicators.adx || 0;
+            const adxException = (config.strategy as any).sessionDeadHoursAdxException || 35;
+            if (utcHour >= start && utcHour < end && adxVal < adxException) {
+                strategyLogger.info(`🌙 Session filter: ${utcHour}:00 UTC dead zone — skipping (ADX ${adxVal.toFixed(1)} < ${adxException})`);
+                return this.holdSignal(currentPrice, indicators, `Dead session (${utcHour}:00 UTC)`);
+            }
+        }
+
         // Get previous indicators for crossover detection
         const prevCandles = candles.slice(0, -1);
         const prevIndicators = IndicatorCalculator.calculate(prevCandles);
@@ -19,6 +34,23 @@ export class TrendFollowingStrategy extends BaseStrategy {
         if (!prevIndicators) {
             return this.holdSignal(currentPrice, indicators, 'Insufficient data');
         }
+
+        // ─── EMA200 MASTER TREND FILTER ───────────────────────────────────────
+        // Only allow longs when price is above EMA200 (bull market structure).
+        // Only allow shorts when price is below EMA200 (bear market structure).
+        // When EMA200 is unavailable (< 200 candles), allow all signals (neutral).
+        const ema200 = (indicators as any).ema200 as number | undefined;
+        const aboveEma200 = ema200 === undefined || currentPrice > ema200;
+        const belowEma200 = ema200 === undefined || currentPrice < ema200;
+
+        // ─── MARKET STRUCTURE CHECK ───────────────────────────────────────────
+        // Confirm HH/HL for longs, LH/LL for shorts using the last two swing points.
+        const swingLow1  = IndicatorCalculator.findSwingLow(candles, 5, 40);
+        const swingLow2  = IndicatorCalculator.findSwingLow(candles.slice(0, -10), 5, 40);
+        const swingHigh1 = IndicatorCalculator.findSwingHigh(candles, 5, 40);
+        const swingHigh2 = IndicatorCalculator.findSwingHigh(candles.slice(0, -10), 5, 40);
+        const higherLows  = swingLow1  !== null && swingLow2  !== null && swingLow1  > swingLow2;
+        const lowerHighs  = swingHigh1 !== null && swingHigh2 !== null && swingHigh1 < swingHigh2;
 
         let confidence = 0;
         let signal: 'buy' | 'sell' | 'hold' = 'hold';
@@ -62,10 +94,17 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 strategyLogger.info(`⚠️ Bullish crossover rejected: ADX ${adxValue.toFixed(1)} < 25 (ranging market)`);
                 return this.holdSignal(currentPrice, indicators, `Crossover rejected: ADX too low (${adxValue.toFixed(1)})`);
             }
+            // EMA200 master trend gate
+            if (!aboveEma200) {
+                strategyLogger.info(`⚠️ LONG rejected: price $${currentPrice.toFixed(4)} below EMA200 $${ema200!.toFixed(4)} — bear market`);
+                return this.holdSignal(currentPrice, indicators, 'LONG blocked: below EMA200');
+            }
 
             signal = 'buy';
             confidence += 0.3;
             reason = 'Bullish EMA crossover';
+            // Market structure bonus
+            if (higherLows) { confidence += 0.05; reason += ', HH/HL confirmed'; }
 
             // ADX bonus: stronger trend = higher confidence
             if (adxValue > 30) {
@@ -129,10 +168,17 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 strategyLogger.info(`⚠️ Bearish crossover rejected: ADX ${adxValue.toFixed(1)} < 25 (ranging market)`);
                 return this.holdSignal(currentPrice, indicators, `Crossover rejected: ADX too low (${adxValue.toFixed(1)})`);
             }
+            // EMA200 master trend gate
+            if (!belowEma200) {
+                strategyLogger.info(`⚠️ SHORT rejected: price $${currentPrice.toFixed(4)} above EMA200 $${ema200!.toFixed(4)} — bull market`);
+                return this.holdSignal(currentPrice, indicators, 'SHORT blocked: above EMA200');
+            }
 
             signal = 'sell';
             confidence += 0.3;
             reason = 'Bearish EMA crossover';
+            // Market structure bonus
+            if (lowerHighs) { confidence += 0.05; reason += ', LH/LL confirmed'; }
 
             if (adxValue > 30) {
                 confidence += 0.05;
@@ -198,11 +244,13 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 indicators.rsi < config.strategy.rsiOverbought &&
                 indicators.macd.histogram > 0 &&
                 currentVolume > indicators.volumeAvg * 1.2 &&
-                (!ema50 || currentPrice < ema50 * 1.05)
+                (!ema50 || currentPrice < ema50 * 1.05) &&
+                aboveEma200
             ) {
                 signal = 'buy';
                 confidence = 0.68;
                 reason = 'Uptrend continuation (ADX+MACD confirmed)';
+                if (higherLows) { confidence += 0.05; reason += ', HH/HL structure'; }
                 if (ema50 && currentPrice >= ema50 && currentPrice < ema50 * 1.005) {
                     confidence += 0.07;
                     reason += ', fresh EMA50 breakout';
@@ -232,11 +280,13 @@ export class TrendFollowingStrategy extends BaseStrategy {
                 indicators.rsi < 50 &&
                 indicators.macd.MACD < indicators.macd.signal &&
                 indicators.macd.histogram < 0 &&
-                (!ema50 || currentPrice > ema50 * 0.95)
+                (!ema50 || currentPrice > ema50 * 0.95) &&
+                belowEma200
             ) {
                 signal = 'sell';
                 confidence = 0.75;
                 reason = 'Downtrend continuation';
+                if (lowerHighs) { confidence += 0.05; reason += ', LH/LL structure'; }
                 if (ema50 && currentPrice <= ema50 && currentPrice > ema50 * 0.995) {
                     confidence += 0.05;
                     reason += ', fresh EMA50 break';
