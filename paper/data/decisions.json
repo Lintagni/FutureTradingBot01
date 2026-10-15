@@ -1,26 +1,26 @@
 {
- "generatedAt": "2026-10-15T17:10:17Z",
- "decisions": {
-  "BTC/USDT": {
-   "action": "hold",
-   "confidence": 0.6,
-   "posState": "flat",
-   "reason": "1h bounce reclaimed EMA50 (82.06k) but price still under 4h EMA21/50 (82.4k/83.0k); wait for 4h reclaim or rejection",
-   "id": "2026-10-15T17:10:17Z-BTC"
-  },
-  "ETH/USDT": {
-   "action": "hold",
-   "confidence": 0.6,
-   "posState": "flat",
-   "reason": "+4% bounce stalling at 2436 under 4h EMA21 2458 and EMA50 2508; 4h trend down, no clean entry",
-   "id": "2026-10-15T17:10:17Z-ETH"
-  },
-  "SOL/USDT": {
-   "action": "hold",
-   "confidence": 0.6,
-   "posState": "flat",
-   "reason": "Rebound to 105.8 under 4h EMA21 106.3 / EMA50 109.3; 1h RSI 58 not stretched but no edge yet",
-   "id": "2026-10-15T17:10:17Z-SOL"
+  "generatedAt": "2026-10-15T17:16:00Z",
+  "decisions": {
+    "BTC/USDT": {
+      "id": "2026-10-15T17:16:00Z-BTC",
+      "action": "hold",
+      "confidence": 0.62,
+      "posState": "flat",
+      "reason": "82.2k reclaimed 1h EMA50 82.06k but capped by 4h EMA21 82.45k/EMA50 82.97k, 4h MACD negative; wait for 4h reclaim or rejection"
+    },
+    "ETH/USDT": {
+      "id": "2026-10-15T17:16:00Z-ETH",
+      "action": "hold",
+      "confidence": 0.62,
+      "posState": "flat",
+      "reason": "Bounce stalling ~2438 below 4h EMA21 2458/EMA50 2508 after 2447 high; 4h downtrend, no clean entry either way"
+    },
+    "SOL/USDT": {
+      "id": "2026-10-15T17:16:00Z-SOL",
+      "action": "hold",
+      "confidence": 0.62,
+      "posState": "flat",
+      "reason": "105.9 just under 4h EMA21 106.3, EMA50 109.3 overhead; rebound off 100.9 lacks confirmation, no edge"
+    }
   }
- }
 }
