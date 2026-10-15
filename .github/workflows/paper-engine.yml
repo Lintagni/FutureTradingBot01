@@ -1,0 +1,46 @@
+name: Paper engine
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"               # every 15 min (GitHub may run it a few minutes late)
+  push:
+    branches: [master]
+    paths: ["paper/data/decisions.json"] # apply Claude's new decisions right away
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paper-engine
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: paper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run engine (paper only)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node engine.mjs
+      - name: Save books
+        run: |
+          git config user.name "paper-engine"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ledger.json data/state.json
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "engine: $(date -u +%Y-%m-%dT%H:%MZ)" -q
+          for i in 1 2 3 4; do
+            git pull --rebase -q && git push -q && exit 0
+            sleep $((i*5))
+          done
+          exit 1

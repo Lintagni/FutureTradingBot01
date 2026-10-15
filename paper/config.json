@@ -1,0 +1,16 @@
+{
+  "symbols": {
+    "BTC/USDT": "XBTUSDT",
+    "ETH/USDT": "ETHUSDT",
+    "SOL/USDT": "SOLUSDT"
+  },
+  "startEquity": 100,
+  "leverage": 2,
+  "marginPct": 0.2,
+  "stopLossPct": 3,
+  "takeProfitPct": 9,
+  "feePctPerSide": 0.06,
+  "maxOpenPositions": 1,
+  "decisionMaxAgeMin": 300,
+  "goal": { "label": "Porsche 911", "amount": 120000 }
+}
