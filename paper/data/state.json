@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-10-15T17:09:48.919Z",
+ "updatedAt": "2026-10-15T17:10:30.791Z",
  "mode": "paper",
  "engine": "github-actions",
  "priceSource": "Kraken spot",
@@ -37,26 +37,57 @@
  },
  "openPositions": [],
  "recentClosedTrades": [],
- "lastDecisions": [],
+ "lastDecisions": [
+  {
+   "seenAt": "2026-10-15T17:10:30.791Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "Rebound to 105.8 under 4h EMA21 106.3 / EMA50 109.3; 1h RSI 58 not stretched but no edge yet",
+   "note": "",
+   "id": "2026-10-15T17:10:17Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-15T17:10:30.791Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "+4% bounce stalling at 2436 under 4h EMA21 2458 and EMA50 2508; 4h trend down, no clean entry",
+   "note": "",
+   "id": "2026-10-15T17:10:17Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-15T17:10:30.791Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "1h bounce reclaimed EMA50 (82.06k) but price still under 4h EMA21/50 (82.4k/83.0k); wait for 4h reclaim or rejection",
+   "note": "",
+   "id": "2026-10-15T17:10:17Z-BTC"
+  }
+ ],
  "symbols": {
   "BTC/USDT": {
-   "price": 82140.3,
+   "price": 82197.5,
    "position": null,
    "indicators1h": {
-    "rsi14": 54.6933,
-    "ema9": 81640.7,
-    "ema21": 81607.4,
-    "ema50": 82058.5,
-    "macdHist": 196.788,
-    "atr14": 617.092,
+    "rsi14": 55.2005,
+    "ema9": 81652.2,
+    "ema21": 81612.6,
+    "ema50": 82060.8,
+    "macdHist": 200.439,
+    "atr14": 620.585,
     "adx14": 26.0156
    },
    "indicators4h": {
-    "rsi14": 46.675,
-    "ema9": 82021.4,
-    "ema21": 82444.2,
-    "ema50": 82969.9,
-    "macdHist": -85.2615,
+    "rsi14": 47.0486,
+    "ema9": 82032.8,
+    "ema21": 82449.4,
+    "ema50": 82972.2,
+    "macdHist": -81.6112,
     "atr14": 1010.31,
     "adx14": 36.6622
    },
@@ -440,10 +471,10 @@
     [
      "2026-10-15T17:00",
      82126.6,
-     82167.3,
+     82216.2,
      82084.5,
-     82140.3,
-     0.34812
+     82197.5,
+     0.34902
     ]
    ],
    "candles4h": [
@@ -684,29 +715,29 @@
      82433.8,
      82540.8,
      81940,
-     82140.3,
-     2.5327
+     82197.5,
+     2.5336
     ]
    ]
   },
   "ETH/USDT": {
-   "price": 2436.03,
+   "price": 2438.38,
    "position": null,
    "indicators1h": {
-    "rsi14": 57.1052,
-    "ema9": 2403.05,
-    "ema21": 2402.28,
-    "ema50": 2432.55,
-    "macdHist": 12.0813,
-    "atr14": 25.8878,
+    "rsi14": 57.5826,
+    "ema9": 2403.52,
+    "ema21": 2402.5,
+    "ema50": 2432.65,
+    "macdHist": 12.2312,
+    "atr14": 26.0556,
     "adx14": 38.3474
    },
    "indicators4h": {
-    "rsi14": 44.4681,
-    "ema9": 2426.57,
-    "ema21": 2458.07,
-    "ema50": 2507.55,
-    "macdHist": -4.7264,
+    "rsi14": 44.7869,
+    "ema9": 2427.04,
+    "ema21": 2458.29,
+    "ema50": 2507.64,
+    "macdHist": -4.57643,
     "atr14": 44.817,
     "adx14": 38.8302
    },
@@ -1090,10 +1121,10 @@
     [
      "2026-10-15T17:00",
      2432.71,
-     2436.03,
+     2438.38,
      2431.92,
-     2436.03,
-     0.053796
+     2438.38,
+     0.1078
     ]
    ],
    "candles4h": [
@@ -1334,29 +1365,29 @@
      2439.87,
      2445.28,
      2423.33,
-     2436.03,
-     53.079
+     2438.38,
+     53.133
     ]
    ]
   },
   "SOL/USDT": {
-   "price": 105.83,
+   "price": 105.9,
    "position": null,
    "indicators1h": {
-    "rsi14": 58.2638,
-    "ema9": 104.324,
-    "ema21": 104.046,
-    "ema50": 105.023,
-    "macdHist": 0.500891,
-    "atr14": 1.25047,
+    "rsi14": 58.9622,
+    "ema9": 104.358,
+    "ema21": 104.061,
+    "ema50": 105.03,
+    "macdHist": 0.51174,
+    "atr14": 1.26047,
     "adx14": 24.7802
    },
    "indicators4h": {
-    "rsi14": 46.0951,
-    "ema9": 104.931,
-    "ema21": 106.284,
-    "ema50": 109.281,
-    "macdHist": 0.0942397,
+    "rsi14": 46.3007,
+    "ema9": 104.945,
+    "ema21": 106.291,
+    "ema50": 109.283,
+    "macdHist": 0.0987069,
     "atr14": 2.31723,
     "adx14": 41.9804
    },
@@ -1740,10 +1771,10 @@
     [
      "2026-10-15T17:00",
      105.61,
-     105.78,
+     105.92,
      105.48,
-     105.73,
-     135.75
+     105.9,
+     201.17
     ]
    ],
    "candles4h": [
@@ -1984,8 +2015,8 @@
      106.09,
      106.14,
      105.18,
-     105.83,
-     1071.9
+     105.9,
+     1137
     ]
    ]
   }
