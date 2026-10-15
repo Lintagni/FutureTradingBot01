@@ -35,12 +35,45 @@
    "reason": "Rebound to 105.8 under 4h EMA21 106.3 / EMA50 109.3; 1h RSI 58 not stretched but no edge yet",
    "note": "",
    "id": "2026-10-15T17:10:17Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-15T17:16:16.252Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.62,
+   "reason": "82.2k reclaimed 1h EMA50 82.06k but capped by 4h EMA21 82.45k/EMA50 82.97k, 4h MACD negative; wait for 4h reclaim or rejection",
+   "note": "",
+   "id": "2026-10-15T17:16:00Z-BTC"
+  },
+  {
+   "seenAt": "2026-10-15T17:16:16.252Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.62,
+   "reason": "Bounce stalling ~2438 below 4h EMA21 2458/EMA50 2508 after 2447 high; 4h downtrend, no clean entry either way",
+   "note": "",
+   "id": "2026-10-15T17:16:00Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-15T17:16:16.252Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.62,
+   "reason": "105.9 just under 4h EMA21 106.3, EMA50 109.3 overhead; rebound off 100.9 lacks confirmation, no edge",
+   "note": "",
+   "id": "2026-10-15T17:16:00Z-SOL"
   }
  ],
  "consumed": [
   "2026-10-15T17:10:17Z-BTC",
   "2026-10-15T17:10:17Z-ETH",
-  "2026-10-15T17:10:17Z-SOL"
+  "2026-10-15T17:10:17Z-SOL",
+  "2026-10-15T17:16:00Z-BTC",
+  "2026-10-15T17:16:00Z-ETH",
+  "2026-10-15T17:16:00Z-SOL"
  ],
  "equityHistory": [
   {
@@ -48,5 +81,5 @@
    "equity": 100
   }
  ],
- "lastRun": "2026-10-15T17:10:30.791Z"
+ "lastRun": "2026-10-15T17:16:16.252Z"
 }
