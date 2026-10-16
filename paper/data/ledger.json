@@ -305,6 +305,36 @@
    "reason": "104.34 broke 104.6 range low, weakest coin, but 103.8 support near and 1h ADX 13; R:R to 101.5 poor vs 3% stop",
    "note": "",
    "id": "2026-10-16T16:08:00Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-16T20:11:07.435Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.62,
+   "reason": "81.67k bounced off 80.81k low, now under 1h EMA21 81.81k and 4h EMA21 82.21k, 1h ADX 15; no clean edge either way",
+   "note": "",
+   "id": "2026-10-16T20:10:00Z-BTC"
+  },
+  {
+   "seenAt": "2026-10-16T20:11:07.435Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.58,
+   "reason": "2412 lost 2426 support, below all EMAs, but basing 2393-2400 with 1h ADX 17; shorting into support poor R:R vs 3% stop",
+   "note": "",
+   "id": "2026-10-16T20:10:00Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-16T20:11:07.435Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.58,
+   "reason": "103.78 under 1h EMA21 104.83, 4h EMA50 108.2; defending 102.55-102.8 lows on high volume, short late, long countertrend; wait",
+   "note": "",
+   "id": "2026-10-16T20:10:00Z-SOL"
   }
  ],
  "consumed": [
@@ -337,7 +367,10 @@
   "2026-10-16T12:14:00Z-SOL",
   "2026-10-16T16:08:00Z-BTC",
   "2026-10-16T16:08:00Z-ETH",
-  "2026-10-16T16:08:00Z-SOL"
+  "2026-10-16T16:08:00Z-SOL",
+  "2026-10-16T20:10:00Z-BTC",
+  "2026-10-16T20:10:00Z-ETH",
+  "2026-10-16T20:10:00Z-SOL"
  ],
  "equityHistory": [
   {
@@ -393,5 +426,5 @@
    "equity": 100
   }
  ],
- "lastRun": "2026-10-16T20:09:28.198Z"
+ "lastRun": "2026-10-16T20:11:07.435Z"
 }
