@@ -125,6 +125,36 @@
    "reason": "106.0 capped below 4h EMA21 106.28 and 106.5 high, EMA50 109.2 overhead; flat 1h range, no edge",
    "note": "",
    "id": "2026-10-15T20:09:53Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-16T00:11:09.709Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.64,
+   "reason": "82.36k chopping 81.95-82.65k beneath 4h EMA21 82.44k/EMA50 82.93k, 1h ADX 17; no edge until 4h close >82.7k or <81.9k",
+   "note": "",
+   "id": "2026-10-16T00:10:00Z-BTC"
+  },
+  {
+   "seenAt": "2026-10-16T00:11:09.709Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.62,
+   "reason": "2446 rejected at 2466 after poking 4h EMA21 2457, EMA50 2503 overhead; 4h trend down, mid-range, no clean entry",
+   "note": "",
+   "id": "2026-10-16T00:10:00Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-16T00:11:09.709Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.63,
+   "reason": "105.5 drifting below 4h EMA21 106.16 after 106.5 cap, EMA50 109 overhead; tight 105.2-106.5 range, no edge",
+   "note": "",
+   "id": "2026-10-16T00:10:00Z-SOL"
   }
  ],
  "consumed": [
@@ -139,7 +169,10 @@
   "2026-10-15T17:16:21Z-SOL",
   "2026-10-15T20:09:53Z-BTC",
   "2026-10-15T20:09:53Z-ETH",
-  "2026-10-15T20:09:53Z-SOL"
+  "2026-10-15T20:09:53Z-SOL",
+  "2026-10-16T00:10:00Z-BTC",
+  "2026-10-16T00:10:00Z-ETH",
+  "2026-10-16T00:10:00Z-SOL"
  ],
  "equityHistory": [
   {
@@ -159,5 +192,5 @@
    "equity": 100
   }
  ],
- "lastRun": "2026-10-16T00:09:52.355Z"
+ "lastRun": "2026-10-16T00:11:09.709Z"
 }
