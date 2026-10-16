@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-10-16T08:08:34.248Z",
+ "updatedAt": "2026-10-16T08:09:58.606Z",
  "mode": "paper",
  "engine": "github-actions",
  "priceSource": "Kraken spot",
@@ -39,6 +39,36 @@
  "recentClosedTrades": [],
  "lastDecisions": [
   {
+   "seenAt": "2026-10-16T08:09:58.606Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.63,
+   "reason": "106.41 just over 4h EMA21 106.19 but capped 106.64, EMA50 108.8 overhead, 1h ADX 13.5; weak volume, no edge",
+   "note": "",
+   "id": "2026-10-16T08:12:00Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-16T08:09:58.606Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.63,
+   "reason": "2457 testing 4h EMA21 2456, 2466 resistance and EMA50 2499 overhead, 1h ADX 17; no clean entry, wait for 2466 break",
+   "note": "",
+   "id": "2026-10-16T08:12:00Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-16T08:09:58.606Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.65,
+   "reason": "82.28k grinding on thin volume under 4h EMA21 82.39k/EMA50 82.87k, 1h ADX 14; wait for break >82.65k or <81.69k",
+   "note": "",
+   "id": "2026-10-16T08:12:00Z-BTC"
+  },
+  {
    "seenAt": "2026-10-16T04:09:17.937Z",
    "symbol": "SOL/USDT",
    "action": "hold",
@@ -67,57 +97,27 @@
    "reason": "82.03k chopping under 4h EMA21 82.38k/EMA50 82.88k, 81.69k low held, 1h ADX 16; wait for break <81.6k or >82.7k",
    "note": "",
    "id": "2026-10-16T04:08:00Z-BTC"
-  },
-  {
-   "seenAt": "2026-10-16T04:07:53.551Z",
-   "symbol": "SOL/USDT",
-   "action": "hold",
-   "applied": "hold",
-   "confidence": 0.64,
-   "reason": "105.2 tight 104.6-105.8 range under 4h EMA21 106.06, EMA50 108.8 overhead, 1h ADX 15; no edge either way",
-   "note": "",
-   "id": "2026-10-16T04:07:00Z-SOL"
-  },
-  {
-   "seenAt": "2026-10-16T04:07:53.551Z",
-   "symbol": "ETH/USDT",
-   "action": "hold",
-   "applied": "hold",
-   "confidence": 0.63,
-   "reason": "2436 stuck 2426-2446 below 4h EMA21 2455/EMA50 2500; 4h downtrend but 2426 support holding, no clean short or long",
-   "note": "",
-   "id": "2026-10-16T04:07:00Z-ETH"
-  },
-  {
-   "seenAt": "2026-10-16T04:07:53.551Z",
-   "symbol": "BTC/USDT",
-   "action": "hold",
-   "applied": "hold",
-   "confidence": 0.65,
-   "reason": "82.03k fading under 4h EMA21 82.38k/EMA50 82.88k, 81.69k low held, 1h ADX 16; range chop, wait for 4h break <81.6k or >82.7k",
-   "note": "",
-   "id": "2026-10-16T04:07:00Z-BTC"
   }
  ],
  "symbols": {
   "BTC/USDT": {
-   "price": 82279.4,
+   "price": 82304,
    "position": null,
    "indicators1h": {
-    "rsi14": 54.4027,
-    "ema9": 82204.6,
-    "ema21": 82087,
-    "ema50": 82146,
-    "macdHist": 15.2697,
+    "rsi14": 54.8498,
+    "ema9": 82209.5,
+    "ema21": 82089.3,
+    "ema50": 82147,
+    "macdHist": 16.8396,
     "atr14": 404.458,
     "adx14": 14.4494
    },
    "indicators4h": {
-    "rsi14": 47.7781,
-    "ema9": 82171,
-    "ema21": 82393.4,
-    "ema50": 82869.3,
-    "macdHist": 40.605,
+    "rsi14": 48.0036,
+    "ema9": 82176,
+    "ema21": 82395.7,
+    "ema50": 82870.3,
+    "macdHist": 42.1749,
     "atr14": 880.136,
     "adx14": 44.3926
    },
@@ -503,8 +503,8 @@
      82303.6,
      82362.3,
      82271.1,
-     82279.4,
-     1.2803
+     82304,
+     1.2841
     ]
    ],
    "candles4h": [
@@ -745,8 +745,8 @@
      82303.6,
      82362.3,
      82271.1,
-     82279.4,
-     1.2803
+     82304,
+     1.2841
     ]
    ]
   },
@@ -1401,23 +1401,23 @@
    ]
   },
   "SOL/USDT": {
-   "price": 106.41,
+   "price": 106.45,
    "position": null,
    "indicators1h": {
-    "rsi14": 60.9221,
-    "ema9": 105.955,
-    "ema21": 105.445,
-    "ema50": 105.393,
-    "macdHist": 0.1069,
+    "rsi14": 61.2103,
+    "ema9": 105.963,
+    "ema21": 105.449,
+    "ema50": 105.394,
+    "macdHist": 0.109453,
     "atr14": 0.854173,
     "adx14": 13.5368
    },
    "indicators4h": {
-    "rsi14": 48.7493,
-    "ema9": 105.577,
-    "ema21": 106.186,
-    "ema50": 108.789,
-    "macdHist": 0.404473,
+    "rsi14": 48.905,
+    "ema9": 105.585,
+    "ema21": 106.19,
+    "ema50": 108.79,
+    "macdHist": 0.407026,
     "atr14": 1.99335,
     "adx14": 38.2184
    },
@@ -1803,8 +1803,8 @@
      106.44,
      106.55,
      106.28,
-     106.41,
-     64.098
+     106.45,
+     65.624
     ]
    ],
    "candles4h": [
@@ -2045,8 +2045,8 @@
      106.44,
      106.55,
      106.28,
-     106.41,
-     64.098
+     106.45,
+     65.624
     ]
    ]
   }
