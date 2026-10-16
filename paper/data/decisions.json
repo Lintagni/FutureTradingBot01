@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-16T04:08:00Z",
+  "generatedAt": "2026-10-16T08:12:00Z",
   "decisions": {
-    "BTC/USDT": { "id": "2026-10-16T04:08:00Z-BTC", "action": "hold", "confidence": 0.65, "posState": "flat", "reason": "82.03k chopping under 4h EMA21 82.38k/EMA50 82.88k, 81.69k low held, 1h ADX 16; wait for break <81.6k or >82.7k" },
-    "ETH/USDT": { "id": "2026-10-16T04:08:00Z-ETH", "action": "hold", "confidence": 0.63, "posState": "flat", "reason": "2437 boxed 2426-2446 below 4h EMA21 2455/EMA50 2500; 4h downtrend but 2426 support holding, no clean entry" },
-    "SOL/USDT": { "id": "2026-10-16T04:08:00Z-SOL", "action": "hold", "confidence": 0.64, "posState": "flat", "reason": "105.2 in 104.6-105.8 range under 4h EMA21 106.06, EMA50 108.8 overhead, 1h ADX 15; no edge" }
+    "BTC/USDT": { "id": "2026-10-16T08:12:00Z-BTC", "action": "hold", "confidence": 0.65, "posState": "flat", "reason": "82.28k grinding on thin volume under 4h EMA21 82.39k/EMA50 82.87k, 1h ADX 14; wait for break >82.65k or <81.69k" },
+    "ETH/USDT": { "id": "2026-10-16T08:12:00Z-ETH", "action": "hold", "confidence": 0.63, "posState": "flat", "reason": "2457 testing 4h EMA21 2456, 2466 resistance and EMA50 2499 overhead, 1h ADX 17; no clean entry, wait for 2466 break" },
+    "SOL/USDT": { "id": "2026-10-16T08:12:00Z-SOL", "action": "hold", "confidence": 0.63, "posState": "flat", "reason": "106.41 just over 4h EMA21 106.19 but capped 106.64, EMA50 108.8 overhead, 1h ADX 13.5; weak volume, no edge" }
   }
 }
