@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-17T12:10:00Z",
+  "generatedAt": "2026-10-17T16:10:00Z",
   "decisions": {
-    "BTC/USDT": { "id": "2026-10-17T12:10:00Z-BTC", "action": "hold", "confidence": 0.64, "posState": "flat", "reason": "81.56k slipping below 1h EMA21 81.65k, under 4h EMA21 82.01k; 81.43k-81.82k range, 1h ADX 14, thin weekend volume" },
-    "ETH/USDT": { "id": "2026-10-17T12:10:00Z-ETH", "action": "hold", "confidence": 0.62, "posState": "flat", "reason": "2432 rejected 2441, sits at 1h EMA21 2432 below EMA50 2435 and 4h EMA21 2444; 1h ADX 11.5 chop" },
-    "SOL/USDT": { "id": "2026-10-17T12:10:00Z-SOL", "action": "hold", "confidence": 0.58, "posState": "flat", "reason": "104.44 lost 1h EMAs ~104.8, under 4h EMA21 105.4; support 102.55 far, ADX 11.5, no edge either side" }
+    "BTC/USDT": { "id": "2026-10-17T16:10:00Z-BTC", "action": "hold", "confidence": 0.64, "posState": "flat", "reason": "81.44k testing 81.43k range low, below 1h EMA21 81.62k and 4h EMA21 82.0k; 1h ADX 15, thin weekend volume, 80.8k support near" },
+    "ETH/USDT": { "id": "2026-10-17T16:10:00Z-ETH", "action": "hold", "confidence": 0.6, "posState": "flat", "reason": "2413 broke 2421 range low under 1h EMA21 2429, but 2393 support only ~0.8% away; 1h ADX 11, poor short R:R" },
+    "SOL/USDT": { "id": "2026-10-17T16:10:00Z-SOL", "action": "hold", "confidence": 0.6, "posState": "flat", "reason": "103.9 below 1h EMAs ~104.6 and 4h EMA21 105.3; 102.55 support close, 1h ADX 14 chop, no clean edge" }
   }
 }
