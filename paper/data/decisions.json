@@ -1,8 +1,26 @@
 {
-  "generatedAt": "2026-10-18T16:09:00Z",
+  "generatedAt": "2026-10-18T20:09:00Z",
   "decisions": {
-    "BTC/USDT": { "id": "2026-10-18T16:09:00Z-BTC", "action": "hold", "confidence": 0.62, "posState": "flat", "reason": "81.12k dumped below 1h EMA50 81.67k and 4h EMA21 81.78k, but 80.81-80.86k support near; short R:R poor, wait for break or reclaim" },
-    "ETH/USDT": { "id": "2026-10-18T16:09:00Z-ETH", "action": "hold", "confidence": 0.6, "posState": "flat", "reason": "2372.5 weakest, below all EMAs, 1h RSI 33; chasing into 2357 support with 2318 next is poor R:R; wait for bounce to 2395-2405 to short" },
-    "SOL/USDT": { "id": "2026-10-18T16:09:00Z-SOL", "action": "hold", "confidence": 0.61, "posState": "flat", "reason": "102.06 below 1h EMA21 103.36/4h EMA21 104.30, RSI 36; 101.27/100.63 support close, short late; no long against 4h trend" }
+    "BTC/USDT": {
+      "id": "2026-10-18T20:09:00Z-BTC",
+      "action": "hold",
+      "confidence": 0.58,
+      "posState": "flat",
+      "reason": "80.90k below all EMAs, but 19:00 close 80.88k held 80.80-80.86k support; short only on 1h close <80.8k toward 80.25k/79.78k"
+    },
+    "ETH/USDT": {
+      "id": "2026-10-18T20:09:00Z-ETH",
+      "action": "hold",
+      "confidence": 0.62,
+      "posState": "flat",
+      "reason": "2339 flushed through 2357 to 2329, 1h RSI 25 oversold; shorting after the drop is late, longing against 4h downtrend (EMA21 2412) unjustified"
+    },
+    "SOL/USDT": {
+      "id": "2026-10-18T20:09:00Z-SOL",
+      "action": "hold",
+      "confidence": 0.6,
+      "posState": "flat",
+      "reason": "100.95 broke 101.27 into 100.46-100.63 Oct-15 support, 1h RSI 31; short R:R poor at support, no long below EMA21 102.76"
+    }
   }
 }
