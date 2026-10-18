@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-10-18T16:08:37.421Z",
+ "updatedAt": "2026-10-18T16:09:59.407Z",
  "mode": "paper",
  "engine": "github-actions",
  "priceSource": "Kraken spot",
@@ -39,6 +39,36 @@
  "recentClosedTrades": [],
  "lastDecisions": [
   {
+   "seenAt": "2026-10-18T16:09:59.407Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.61,
+   "reason": "102.06 below 1h EMA21 103.36/4h EMA21 104.30, RSI 36; 101.27/100.63 support close, short late; no long against 4h trend",
+   "note": "",
+   "id": "2026-10-18T16:09:00Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-18T16:09:59.407Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "2372.5 weakest, below all EMAs, 1h RSI 33; chasing into 2357 support with 2318 next is poor R:R; wait for bounce to 2395-2405 to short",
+   "note": "",
+   "id": "2026-10-18T16:09:00Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-18T16:09:59.407Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.62,
+   "reason": "81.12k dumped below 1h EMA50 81.67k and 4h EMA21 81.78k, but 80.81-80.86k support near; short R:R poor, wait for break or reclaim",
+   "note": "",
+   "id": "2026-10-18T16:09:00Z-BTC"
+  },
+  {
    "seenAt": "2026-10-18T12:11:08.242Z",
    "symbol": "SOL/USDT",
    "action": "hold",
@@ -67,36 +97,6 @@
    "reason": "82.10k above 1h EMAs 81.78k and 4h EMA21 81.93k, but faded 82.27k under 4h EMA50 82.40k; thin weekend volume, wait for breakout",
    "note": "",
    "id": "2026-10-18T12:10:00Z-BTC"
-  },
-  {
-   "seenAt": "2026-10-18T08:10:07.133Z",
-   "symbol": "SOL/USDT",
-   "action": "hold",
-   "applied": "hold",
-   "confidence": 0.6,
-   "reason": "103.23 rejected 104.77, below 1h EMA21 103.77 and 4h EMA21 104.69; support 102.97/101.27 too close to short",
-   "note": "",
-   "id": "2026-10-18T08:12:00Z-SOL"
-  },
-  {
-   "seenAt": "2026-10-18T08:10:07.133Z",
-   "symbol": "ETH/USDT",
-   "action": "hold",
-   "applied": "hold",
-   "confidence": 0.62,
-   "reason": "2408.6 below 1h EMA21 2414 and 4h EMA21 2431, but 2357-2400 support near; short R:R poor, long against trend",
-   "note": "",
-   "id": "2026-10-18T08:12:00Z-ETH"
-  },
-  {
-   "seenAt": "2026-10-18T08:10:07.133Z",
-   "symbol": "BTC/USDT",
-   "action": "hold",
-   "applied": "hold",
-   "confidence": 0.64,
-   "reason": "81.68k rejected 82.05k, sits on flat 1h EMAs 81.63-81.69k under 4h EMA21 81.88k; 1h ADX 14.5, no edge",
-   "note": "",
-   "id": "2026-10-18T08:12:00Z-BTC"
   }
  ],
  "symbols": {
@@ -751,23 +751,23 @@
    ]
   },
   "ETH/USDT": {
-   "price": 2372.53,
+   "price": 2372.84,
    "position": null,
    "indicators1h": {
-    "rsi14": 32.8771,
-    "ema9": 2394.83,
-    "ema21": 2404.99,
-    "ema50": 2415.62,
-    "macdHist": -4.02551,
+    "rsi14": 32.9692,
+    "ema9": 2394.89,
+    "ema21": 2405.01,
+    "ema50": 2415.64,
+    "macdHist": -4.00573,
     "atr14": 12.9611,
     "adx14": 25.2631
    },
    "indicators4h": {
-    "rsi14": 37.5212,
-    "ema9": 2403.62,
-    "ema21": 2421.97,
-    "ema50": 2462.5,
-    "macdHist": -2.10453,
+    "rsi14": 37.5679,
+    "ema9": 2403.69,
+    "ema21": 2422,
+    "ema50": 2462.51,
+    "macdHist": -2.08475,
     "atr14": 32.9004,
     "adx14": 31.9058
    },
@@ -1151,10 +1151,10 @@
     [
      "2026-10-18T16:00",
      2371.64,
-     2372.81,
+     2372.84,
      2371.47,
-     2372.53,
-     0.71349
+     2372.84,
+     0.7226
     ]
    ],
    "candles4h": [
@@ -1393,10 +1393,10 @@
     [
      "2026-10-18T16:00",
      2371.64,
-     2372.81,
+     2372.84,
      2371.47,
-     2372.53,
-     0.71349
+     2372.84,
+     0.7226
     ]
    ]
   },
