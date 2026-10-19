@@ -665,6 +665,36 @@
    "reason": "100.95 broke 101.27 into 100.46-100.63 Oct-15 support, 1h RSI 31; short R:R poor at support, no long below EMA21 102.76",
    "note": "",
    "id": "2026-10-18T20:09:00Z-SOL"
+  },
+  {
+   "seenAt": "2026-10-19T00:10:31.134Z",
+   "symbol": "BTC/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "V-bounce 80.70k->82.20k now at 82.27k range high/4h EMA50 82.29k; long only on 1h close >82.3k, no short into momentum",
+   "note": "",
+   "id": "2026-10-19T00:10:00Z-BTC"
+  },
+  {
+   "seenAt": "2026-10-19T00:10:31.134Z",
+   "symbol": "ETH/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "2414 rebounded from 2329 into 4h EMA21 2418 and 2416-2429 resistance; chasing long poor R:R, short needs rejection below 2390",
+   "note": "",
+   "id": "2026-10-19T00:10:00Z-ETH"
+  },
+  {
+   "seenAt": "2026-10-19T00:10:31.134Z",
+   "symbol": "SOL/USDT",
+   "action": "hold",
+   "applied": "hold",
+   "confidence": 0.6,
+   "reason": "104.22 bounced off 100.46 to 4h EMA21 104.19, resistance 104.3-104.77; 4h trend still down (EMA50 106.4), wait for confirmation",
+   "note": "",
+   "id": "2026-10-19T00:10:00Z-SOL"
   }
  ],
  "consumed": [
@@ -733,7 +763,10 @@
   "2026-10-18T16:09:00Z-SOL",
   "2026-10-18T20:09:00Z-BTC",
   "2026-10-18T20:09:00Z-ETH",
-  "2026-10-18T20:09:00Z-SOL"
+  "2026-10-18T20:09:00Z-SOL",
+  "2026-10-19T00:10:00Z-BTC",
+  "2026-10-19T00:10:00Z-ETH",
+  "2026-10-19T00:10:00Z-SOL"
  ],
  "equityHistory": [
   {
@@ -867,7 +900,11 @@
   {
    "t": "2026-10-18T23:14:26.305Z",
    "equity": 100
+  },
+  {
+   "t": "2026-10-19T00:10:31.134Z",
+   "equity": 100
   }
  ],
- "lastRun": "2026-10-19T00:09:06.332Z"
+ "lastRun": "2026-10-19T00:10:31.134Z"
 }
